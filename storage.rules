@@ -1,0 +1,28 @@
+rules_version = '2';
+
+/* ============================================================
+   本返し ― Storage のきまり
+
+   ⚠️ 置くのは**利用者の顔（アイコン）だけ。**ほかは何も置かない。
+      本の表紙は外のURLを指しているだけで、ここには持っていない。
+
+   ⚠️⚠️ **書けるのは本人の icons/{uid} だけ、1枚 300KB まで、画像だけ。**
+      上げる側（共通.js の 顔をあげる）が 192px の WebP に縮めてから
+      送るので、ふつうは 5〜15KB に収まる。上限はその保険。
+
+   ⚠️ 誰でも読める。読者の声や番付は**ログインしていない人にも見せる**ので、
+      顔だけ読めないと、そこだけ欠けて見える。
+   ============================================================ */
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /icons/{uid} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && request.auth.uid == uid
+        && (request.resource == null
+            || (request.resource.size < 300 * 1024
+                && request.resource.contentType.matches('image/.*')));
+    }
+    match /{rest=**} { allow read, write: if false; }
+  }
+}

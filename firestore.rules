@@ -222,13 +222,28 @@ service cloud.firestore {
           **あとから名前を変えても過去の分に本名が残る。**
           「本名を出したくない」と気づくのは、たいてい1回投稿した後。
        ⚠️ 誰でも読める（読者の声に名前を出すため）。書けるのは本人だけ。 */
+    /* ⚠️ 顔（画像）と印（1文字＋色）の二段構え。画像が無い人は印が出る。
+       ⚠️⚠️ photo は**Storage のURLか null だけ。**好きなURLを入れられると、
+             読者の声が並ぶ画面が、他所のサーバへの発信元になってしまう。 */
     match /users/{uid} {
       allow read: if true;
       allow write: if isMe(uid)
-        && request.resource.data.keys().hasOnly(['name','updatedAt'])
+        && request.resource.data.keys().hasOnly(['name','mark','color','photo','updatedAt'])
         && request.resource.data.name is string
         && request.resource.data.name.size() >= 1
-        && request.resource.data.name.size() <= 24;
+        && request.resource.data.name.size() <= 24
+        && request.resource.data.mark is string
+        && request.resource.data.mark.size() <= 2
+        && request.resource.data.color is string
+        && request.resource.data.color.size() <= 16
+        && (request.resource.data.photo == null
+            || (request.resource.data.photo is string
+                && request.resource.data.photo.size() <= 400
+                /* ⚠️ ルールの字句解析は、**文字列の中でも // をコメントと読む。**
+                      'https://…' と書くとそこから先が消えて、デプロイが落ちる。
+                      だから [/][/] と書く（2026-09-23 に踏んだ）。 */
+                && request.resource.data.photo.matches(
+                     '^https:[/][/]firebasestorage[.]googleapis[.]com[/].*')));
     }
 
     match /admins/{uid} {

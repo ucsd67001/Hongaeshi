@@ -33,6 +33,8 @@ import {
   orderBy, limit, getDocs, writeBatch, serverTimestamp,
   getAggregateFromServer, sum, count
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+import { getStorage, ref as 置き場, uploadBytes, getDownloadURL, deleteObject }
+  from "https://www.gstatic.com/firebasejs/10.14.1/firebase-storage.js";
 
 /* ⚠️ 管理画面（管理.js）が Firestore を直に触るので、ここから渡す。
       SDK を二重に読み込むと別インスタンスになって認証が効かない。 */
@@ -48,7 +50,7 @@ export const 既定額 = 100;       // 金額のはじめの値
 export const 初回配布 = 10000;   // 登録したときに配るポイント
 export const 毎月配布 = 3000;    // 毎月配るポイント
 
-export let app, auth, db;
+export let app, auth, db, 倉;
 export let 私 = null;            // ログイン中の人（firebase の User）
 export let 財布 = null;          // { 残高, 配布済み }
 export let 蔵書 = [];            // books コレクションの中身（画面の姿に直したもの）
@@ -81,28 +83,98 @@ export let 権限 = { 管理者:false, 受取人:[] };
    ⚠️ 名乗りを決めていない人は、Googleの表示名を**その場で使うだけ**
       （保存しない）。決めた人だけ users に入る。
    ============================================================ */
-export let 名乗り表 = new Map();   // uid → 名
+export let 名乗り表 = new Map();   // uid → { 名, 印, 色 }
+
+/* ⚠️⚠️ 顔（画像）と印（1文字＋色）の**二段構え**。
+      画像を上げた人は画像、上げていない人は印が出る。**必ずどちらかが出る。**
+      印は蔵書印のつもりで、外への読み込みが無く、壊れることも待ちも無い。
+      Googleの顔写真をそのまま出したくない人は、印だけで済ませられる。
+
+   ⚠️ 画像は Storage に置く（2026-09-23、Blaze に切り替えたので使える）。
+      **上げる前に必ず 192px 四方へ縮めて WebP にする**（下の 顔をあげる）。
+      原寸のまま置くと、読者の声が並ぶ画面で毎回それを読みに行くことになる。 */
+export const 印の色ら = [
+  { 名:"藤",   値:"#6b4bc4" }, { 名:"朱",   値:"#b03d27" },
+  { 名:"藍",   値:"#2d5580" }, { 名:"緑",   値:"#356b49" },
+  { 名:"茶",   値:"#7a5233" }, { 名:"墨",   値:"#3a3545" },
+  { 名:"金茶",値:"#93712c" }, { 名:"梅",   値:"#a6416b" }
+];
+
+const 既定の印 = 名 => [...(名 || "読")][0] || "読";
 
 export const 私の名 = () =>
-  名乗り表.get(私?.uid) || 私?.displayName || "読者";
+  名乗り表.get(私?.uid)?.名 || 私?.displayName || "読者";
 
 export function 名を引く(uid){
-  return 名乗り表.get(uid) || "読者";
+  return 名乗り表.get(uid)?.名 || "読者";
 }
+
+/* 名前も印も決めていない人にも、必ず何かを返す */
+export function 印を引く(uid, 名のかわり){
+  const u = 名乗り表.get(uid);
+  const 名 = u?.名 || 名のかわり || "読者";
+  return { 印: u?.印 || 既定の印(名), 色: u?.色 || 印の色ら[0].値, 顔: u?.顔 || null };
+}
+export const 私の印 = () => 印を引く(私?.uid, 私の名());
 
 export async function 名乗りらをよみこむ(){
   const s = await getDocs(collection(db, "users"));
-  名乗り表 = new Map(s.docs.map(d=>[d.id, d.data().name]));
+  名乗り表 = new Map(s.docs.map(d=>{
+    const x = d.data();
+    return [d.id, { 名:x.name, 印:x.mark || null, 色:x.color || null, 顔:x.photo || null }];
+  }));
   return 名乗り表;
 }
 
-export async function 名乗りを決める(名){
+export async function 名乗りを決める({ 名, 印, 色, 顔 }){
   if(!私) throw new Error("ログインしていません");
   const n = (名 || "").trim().slice(0, 24);
   if(!n) throw new Error("名前を入れてください");
-  await setDoc(doc(db, "users", 私.uid), { name:n, updatedAt:new Date().toISOString() });
-  名乗り表.set(私.uid, n);
+  const m = ([...(印 || "")][0] || 既定の印(n)).slice(0, 2);
+  const c = 印の色ら.some(x=>x.値 === 色) ? 色 : 印の色ら[0].値;
+  /* ⚠️ 顔は「上げた画像のURL」か null。ルールで長さも見ているので、
+        知らない場所のURLを入れられない（Storage の URL だけ通す）。 */
+  const f = typeof 顔 === "string" && 顔.startsWith("https://") ? 顔 : null;
+  await setDoc(doc(db, "users", 私.uid),
+    { name:n, mark:m, color:c, photo:f, updatedAt:new Date().toISOString() });
+  名乗り表.set(私.uid, { 名:n, 印:m, 色:c, 顔:f });
   return n;
+}
+
+/* ── 顔（画像）をあげる ─────────────────────────
+   ⚠️⚠️ **縮めてから上げる。**原寸のまま置くと、声が20件並ぶ画面で
+      20枚の写真を読みに行くことになり、通信も Storage の課金も効いてくる。
+      192px 四方・WebP なら、たいてい 5〜15KB に収まる。
+   ⚠️ 置き場は icons/{uid} 固定。上書きになるので、古い画像が溜まらない。
+   ⚠️ 正方形に切る（中央基準）。丸く出すので、縦横比を残すと欠ける。 */
+export async function 顔をあげる(ファイル){
+  if(!私) throw new Error("ログインしていません");
+  if(!/^image\//.test(ファイル.type)) throw new Error("画像を選んでください");
+  if(ファイル.size > 8 * 1024 * 1024) throw new Error("画像が大きすぎます（8MBまで）");
+
+  const 絵 = await new Promise((よし, だめ)=>{
+    const i = new Image(); const u = URL.createObjectURL(ファイル);
+    i.onload = ()=>{ URL.revokeObjectURL(u); よし(i); };
+    i.onerror = ()=>{ URL.revokeObjectURL(u); だめ(new Error("画像を読めませんでした")); };
+    i.src = u;
+  });
+
+  const 辺 = 192;
+  const 元辺 = Math.min(絵.width, 絵.height);
+  const c = document.createElement("canvas"); c.width = c.height = 辺;
+  const g = c.getContext("2d");
+  g.imageSmoothingQuality = "high";
+  g.drawImage(絵, (絵.width - 元辺) / 2, (絵.height - 元辺) / 2, 元辺, 元辺, 0, 0, 辺, 辺);
+  const 塊 = await new Promise(よし=>c.toBlob(よし, "image/webp", 0.85));
+
+  const 先 = 置き場(倉, `icons/${私.uid}`);
+  await uploadBytes(先, 塊, { contentType:"image/webp", cacheControl:"public,max-age=86400" });
+  return await getDownloadURL(先);
+}
+
+export async function 顔をけす(){
+  if(!私) throw new Error("ログインしていません");
+  await deleteObject(置き場(倉, `icons/${私.uid}`)).catch(()=>{});  // 無くてもよい
 }
 
 export async function 権限をしらべる(){
@@ -127,6 +199,7 @@ export async function 起動(認証が変わったら){
   app  = initializeApp(設定);
   auth = getAuth(app);
   db   = getFirestore(app);
+  倉   = getStorage(app);
 
   /* ⚠️ 本と主体は**ログインを待たずに**読む。ルールで公開してあるので取れる。
         入る前の画面にも棚を出したいため。 */
@@ -370,13 +443,17 @@ export async function ISBNで確かめる(isbn){
 /* ============================================================
    Firestore の姿 → 画面の姿
    ============================================================ */
+/* ⚠️⚠️ **匿名のときは 送り主（uid）を外へ出さない。**
+      印を出すのに uid が要るが、匿名の行に付けて渡すと、
+      画面の HTML に誰が書いたかが載ってしまう。 */
 const 返しを直す = x => ({
-  種:"返し", 本:x.book, 表示名:x.anon ? "匿名" : 名を引く(x.from), 匿:!!x.anon,
+  種:"返し", 本:x.book, 送り主:x.anon ? null : x.from,
+  表示名:x.anon ? "匿名" : 名を引く(x.from), 匿:!!x.anon,
   額:x.amount||0, 内訳:(x.parts||[]).map(p=>({受取人:p.to, 名:p.name, 額:p.amount})),
   文:x.text||"", 時:x.at
 });
 const 残しを直す = x => ({
-  種:"残し", 本:x.book, 表示名:名を引く(x.from), 匿:false,
+  種:"残し", 本:x.book, 送り主:x.from, 表示名:名を引く(x.from), 匿:false,
   約:x.pledge||0, 文:x.text||"", 時:x.at
 });
 
@@ -507,7 +584,8 @@ export async function 受取人の受取(受取id){
   const 明細 = 返.docs.map(d=>{
     const x = d.data();
     const 行 = (x.parts||[]).find(p=>p.to===受取id);
-    return { 本:x.book, 名:x.anon?"匿名":名を引く(x.from), 額:Math.round((行?.amount||0)*0.9), 文:x.text||"", 時:x.at };
+    return { 本:x.book, 送り主:x.anon?null:x.from, 名:x.anon?"匿名":名を引く(x.from),
+             額:Math.round((行?.amount||0)*0.9), 文:x.text||"", 時:x.at };
   }).filter(x=>x.額>0);
   return { 明細, 合計: 明細.reduce((s,x)=>s+x.額,0) };
 }

@@ -81,11 +81,9 @@ function 帯を描く(){
       <div class="残">${(土台.財布?.残高 ?? 0).toLocaleString()}<span>PT</span></div>
     </div>
     <button class="わたし" onclick="設定をひらく()" title="設定">
-      ${土台.私.photoURL
-        ? `<img class="顔写真" src="${逃(土台.私.photoURL)}" alt="" referrerpolicy="no-referrer">`
-        : `<div class="顔写真"></div>`}
+      ${しるし(土台.私の印())}
       <span class="名">${逃(土台.私の名())}</span>
-      <span class="印">▾</span>
+      <span class="矢">▾</span>
     </button>`
   : `<button class="釦 小" onclick="ログイン()">Googleで入る</button>`;
 }
@@ -192,7 +190,7 @@ function 流れる列(見出し, 添え, 本ら, 表, 並び){
 }
 
 const 声の行 = (v, 本を出す=false) => `<div class="声">
-  <div class="素性"><b>${v.匿?"匿名":逃(v.表示名||"読者")}</b>
+  <div class="素性"><b>${名と印(v.送り主, v.表示名||"読者", v.匿)}</b>
     ${本を出す?`<a onclick="go('book',{id:'${v.本}'})">『${逃(本を引く(v.本)?.題||v.本)}』</a>`:""}
     ${v.種==="返し" ? `<span class="金">${pt(v.額)}</span>`
                    : `<span class="札 注">残したい${v.約?" "+pt(v.約):""}</span>`}
@@ -205,6 +203,22 @@ const 声の行 = (v, 本を出す=false) => `<div class="声">
 const 申請ボタン = () => `<button class="釦" onclick="${土台.私 ? "申請を始める()" : "ログイン()"}">
   ${土台.私 ? "この本を入れてほしい" : "入って登録をお願いする"}</button>`;
 const 申請リンク = () => `<a onclick="${土台.私 ? "申請を始める()" : "ログイン()"}">登録をお願いできます</a>`;
+
+/* 印つきの名前。**名前が出るところには必ずこれを使う。**
+   ⚠️ 匿名のときは印を出さない（誰のものか分かってしまう）。 */
+function 名と印(uid, 表示名, 匿){
+  if(匿) return `<span class="名と印"><span class="印 匿">匿</span>匿名</span>`;
+  return `<span class="名と印">${しるし(土台.印を引く(uid, 表示名))}${逃(表示名)}</span>`;
+}
+
+/* 顔があれば画像、無ければ1文字。**必ずどちらかが出る。**
+   ⚠️ loading="lazy" は外さないこと。声が並ぶ画面で一度に読みに行かせない。 */
+function しるし({ 印, 色, 顔 }, 大きさ){
+  const c = "印" + (大きさ ? " " + 大きさ : "");
+  return 顔
+    ? `<img class="${c}" src="${逃(顔)}" alt="" loading="lazy" referrerpolicy="no-referrer">`
+    : `<span class="${c}" style="background:${色}">${逃(印)}</span>`;
+}
 
 const 数字 = (名,値,添え,朱) =>
   `<div class="数字"><div class="名">${名}</div>
@@ -316,7 +330,7 @@ const 番付の段 = (題, 行ら, 空の言葉) => `
   <div class="番付">
     <h3>${題}</h3>
     ${行ら.length ? `<ol>${行ら.map(r=>`<li>
-      <span class="名">${r.押せる
+      <span class="名">${r.印HTML ? r.印HTML : r.押せる
         ? `<a onclick="go('${r.先頁}',{id:'${逃(r.先id)}'})">${逃(r.名)}</a>`
         : 逃(r.名)}</span>
       <span class="額">${r.金額.toLocaleString()}<i>pt</i></span>
@@ -337,7 +351,8 @@ function 番付たち(順){
       ${番付の段("著者", 主体行(順.著者), "まだありません")}
       ${番付の段("出版社", 主体行(順.出版社), "まだありません")}
       ${番付の段("よく返している人",
-          順.人.map(u=>({ 名:u.名 || "匿名", 金額:u.金額, 押せる:false })), "まだありません")}
+          順.人.map(u=>({ 名:u.名 || "匿名", 金額:u.金額, 押せる:false,
+                          印HTML: 名と印(u.id, u.名 || "匿名", !u.名) })), "まだありません")}
     </div>
   </section>`;
 }
@@ -1016,27 +1031,66 @@ window.申請を出す = async ()=>{
    ============================================================ */
 let 設定中 = { 送信中:false };
 
-window.設定をひらく = ()=>{ 設定中 = { 名: 土台.私の名(), 送信中:false }; 設定描く(); };
+window.設定をひらく = ()=>{
+  const 私の = 土台.私の印();
+  設定中 = { 名:土台.私の名(), 印:私の.印, 色:私の.色, 顔:私の.顔, 送信中:false, 支度中:false };
+  設定描く();
+};
 
 function 設定描く(){
   const 決めてある = 土台.名乗り表.has(土台.私?.uid);
+  const 見本 = 設定中.顔
+    ? `<img class="印 大" src="${逃(設定中.顔)}" alt="">`
+    : `<span class="印 大" style="background:${設定中.色}">${逃(設定中.印 || "読")}</span>`;
   窓.innerHTML = `
   <div class="覆い" onclick="if(event.target===this)覆い閉じ()">
     <div class="窓">
       <div class="窓の頭"><h3>設定</h3>
         <button class="閉じる" onclick="覆い閉じ()">✕</button></div>
       <div class="窓の中">
-        <p class="名札" style="margin-top:0">表示する名前</p>
-        <input class="欄" id="設定の名" maxlength="24" value="${逃(設定中.名 || "")}"
-          placeholder="本の世界に出したい名前">
+
+        <div class="見本の列">
+          ${見本}
+          <div>
+            <p class="名札" style="margin:0 0 6px">表示する名前</p>
+            <input class="欄" id="設定の名" maxlength="24" value="${逃(設定中.名 || "")}"
+              placeholder="本の世界に出したい名前" oninput="設定の見本(this.value)">
+          </div>
+        </div>
+
         <p class="節の注">
-          読者の声や番付に、この名前が出ます。${決めてある ? ""
+          読者の声や番付に、この名前と印が出ます。${決めてある ? ""
             : "<br>いまは Google のアカウント名がそのまま出ています。"}
           <br><b>変えると、過去に送った分もすべて新しい名前に変わります。</b>
           （記録に名前を焼き付けていないため）
           <br>1回ずつ「匿名で届ける」を選ぶこともできます。</p>
-        <button class="釦 全幅" style="margin-top:18px" ${設定中.送信中?"disabled":""}
-          onclick="名乗りを保存()">${設定中.送信中?"保存しています…":"この名前にする"}</button>
+
+        <p class="名札" style="margin-top:22px">しるし</p>
+        <p class="節の注" style="margin-top:4px">
+          名前の横に出るものです。画像を選ぶか、字と色で作れます。</p>
+
+        <div class="しるしの段">
+          <label class="釦 枠だけ 小">
+            ${設定中.支度中 ? "読んでいます…" : (設定中.顔 ? "画像を選び直す" : "画像を選ぶ")}
+            <input type="file" accept="image/*" hidden onchange="設定の画像(this)">
+          </label>
+          ${設定中.顔 ? `<button class="釦 枠だけ 小" onclick="設定の画像をやめる()">画像をやめる</button>` : ""}
+        </div>
+
+        <div class="しるしの作り ${設定中.顔 ? "うすい" : ""}">
+          <input class="欄 一字" id="設定の印" maxlength="2" value="${逃(設定中.印 || "")}"
+            oninput="設定の字(this.value)">
+          <div class="色たち">
+            ${土台.印の色ら.map(c=>`
+              <button class="色" title="${c.名}" style="background:${c.値}"
+                aria-pressed="${設定中.色===c.値}"
+                onclick="設定の色('${c.値}')"></button>`).join("")}
+          </div>
+        </div>
+        ${設定中.顔 ? `<p class="節の注">画像を選んでいるあいだは、字と色は出ません。</p>` : ""}
+
+        <button class="釦 全幅" style="margin-top:22px" ${設定中.送信中||設定中.支度中?"disabled":""}
+          onclick="名乗りを保存()">${設定中.送信中?"保存しています…":"これにする"}</button>
 
         <div style="border-top:1px solid var(--罫);margin-top:26px;padding-top:20px">
           <p class="節の注" style="margin:0 0 12px">
@@ -1047,14 +1101,49 @@ function 設定描く(){
     </div></div>`;
 }
 
+/* ⚠️ 名前を打つたびに全部描き直すと、打っている欄から焦点が外れる。
+      見本の1文字だけを直に書き換える。**印を自分で決めた人の分は触らない。** */
+window.設定の見本 = 値 =>{
+  設定中.名 = 値;
+  if(設定中.顔) return;
+  if(document.getElementById("設定の印")?.value) return;   // 自分で決めた字は触らない
+  const 字 = [...(値 || "読")][0] || "読";
+  設定中.印 = 字;
+  const e = 窓.querySelector(".印.大"); if(e && e.tagName === "SPAN") e.textContent = 字;
+};
+window.設定の字 = 値 =>{
+  設定中.印 = [...(値 || "")][0] || "";
+  const e = 窓.querySelector(".印.大");
+  if(e && e.tagName === "SPAN") e.textContent = 設定中.印 || [...(設定中.名 || "読")][0] || "読";
+};
+window.設定の色 = 値 =>{ 設定中.色 = 値; 設定描く(); };
+
+/* ⚠️ ここでは**上げるだけで、users にはまだ書かない。**
+      「これにする」を押さずに閉じた人の画像は、どこからも見えないまま残る。
+      それは許す（次に上げれば同じ場所に上書きされる）。 */
+window.設定の画像 = async 欄 =>{
+  const f = 欄.files?.[0]; if(!f) return;
+  設定中.支度中 = true; 設定描く();
+  try{
+    設定中.顔 = await 土台.顔をあげる(f);
+    設定中.支度中 = false; 設定描く();
+  }catch(e){
+    設定中.支度中 = false; 設定描く();
+    console.error(e); 知らせる("画像を置けませんでした：" + (e.code||e.message), true);
+  }
+};
+window.設定の画像をやめる = ()=>{ 設定中.顔 = null; 設定描く(); };
+
 window.名乗りを保存 = async ()=>{
   if(設定中.送信中) return;
   const 名 = document.getElementById("設定の名")?.value.trim() || "";
   if(!名){ 知らせる("名前を入れてください", true); return; }
-  設定中.名 = 名; 設定中.送信中 = true; 設定描く();
+  /* ⚠️ 欄の値は、打ったあと描き直していないことがある。**DOMから読み直す。** */
+  const 印 = document.getElementById("設定の印")?.value.trim() || 設定中.印 || "";
+  設定中.名 = 名; 設定中.印 = 印; 設定中.送信中 = true; 設定描く();
   try{
-    await 土台.名乗りを決める(名);
-    覆い閉じ(); 知らせる("名前を変えました");
+    await 土台.名乗りを決める({ 名, 印, 色:設定中.色, 顔:設定中.顔 });
+    覆い閉じ(); 知らせる("変えました");
     描く();
   }catch(e){
     設定中.送信中 = false; 設定描く();
@@ -1155,7 +1244,7 @@ async function 頁_受取人(){
       <tr><th>本</th><th>読者</th><th class="右">受取額</th><th>いつ</th></tr>
       ${明細.length ? 明細.map(i=>`<tr>
         <td class="本"><a onclick="go('book',{id:'${i.本}'})">${逃(本を引く(i.本)?.題||i.本)}</a></td>
-        <td>${逃(i.名)}</td><td class="右">${i.額.toLocaleString()}</td>
+        <td>${名と印(i.送り主, i.名, i.名==="匿名")}</td><td class="右">${i.額.toLocaleString()}</td>
         <td style="color:var(--字のごく薄い);white-space:nowrap">${いつ(i.時)}</td></tr>`).join("")
       : '<tr><td colspan="4" style="color:var(--字のごく薄い)">まだ受取はありません。</td></tr>'}
     </table></div>
