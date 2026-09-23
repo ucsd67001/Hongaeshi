@@ -125,7 +125,9 @@ async function 本をこしらえる(isbn, 正URL, ラベル){
     cover:null, coverAlt:null,
     amazonLinks: [{ label: ラベル || "", url: 正URL }],
     to: 受取, status:"流通",
-    addedBy:"admin", addedAt:new Date().toISOString(), public:true
+    addedBy:"admin", addedAt:new Date().toISOString(), public:true,
+    /* ⚠️ Firestore には入れない。下の表示で人に見せるためだけに持つ */
+    書誌の著者欄: o.著 || null
   };
 }
 if(!リンクら.length){
