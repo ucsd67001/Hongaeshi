@@ -233,8 +233,9 @@ h2.節見出し{font-size:18px;font-weight:600;letter-spacing:.09em;margin:0}
 .閉じる:hover{color:var(--字)}
 .窓の中{padding:20px 26px 26px}
 .段{display:flex;gap:4px;padding:16px 26px 0}
-.段 div{height:2px;flex:1;background:var(--罫);transition:.2s}
-.段 div.いま{background:var(--字)}
+/* 本返しの3段（金額→届け先→ことば）。細い黒と灰では差が見えなかったので、藤で太く（2026-09-23） */
+.段 div{height:4px;flex:1;border-radius:2px;background:var(--灯の淡い);transition:.2s}
+.段 div.いま{background:var(--灯)}
 
 .金額たち{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;margin:14px 0;
   background:var(--罫);border:1px solid var(--罫)}
