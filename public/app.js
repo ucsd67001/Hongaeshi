@@ -593,7 +593,7 @@ async function 頁_本(){
         ${逃(b.著)}<br>${版元と年(b)}${b.頁?`　${b.頁}ページ`:""}${b.isbn?`<br>ISBN ${b.isbn}`:""}</p>
       <div style="margin-top:14px;display:flex;gap:7px;flex-wrap:wrap">
         ${b.状態==="絶版"?'<span class="札 注">絶版・品切れ</span>':'<span class="札 済">流通中</span>'}
-        ${受.length?`<span class="札">届け先 ${受.length}件</span>`:'<span class="札 注">届け先なし</span>'}
+        ${受.length?"":'<span class="札 注">届け先なし</span>'}
       </div>
       <div style="margin-top:26px;display:flex;gap:10px;flex-wrap:wrap">
         ${!入ってる
