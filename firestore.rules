@@ -190,6 +190,42 @@ service cloud.firestore {
         && request.resource.data.at == request.time;
     }
 
+    /* ── ことば ─────────────────────────────
+       voices/{book}_{uid} : { book, from, anon:bool, text, at, editedAt }
+
+       ⚠️⚠️ **1冊に1人1つ。**記録の番号を「本の ISBN _ 自分の uid」に固定して、ここで縛る。
+          ポイントは同じ本に何度返してもよいが、ことばが水増しされないように（2026-09-24 決定）。
+       ⚠️ **ことばだけで推せる。**ポイントを返していなくても書ける。
+          前は返し・残しの text に入っていたので、払わないと書けなかった。
+          いまの返し・残しの text は、画面からは空で送る（古い記録を読むためだけに残す）。
+       ⚠️ **直せる・消せる**（返しと違い、お金の記録ではないので）。直したら editedAt を画面に出す。
+          book・from・at は直させない。 */
+
+    match /voices/{id} {
+      allow read: if true;                        // ⚠️ returns と同じ理由
+
+      function voiceBody(d) {
+        return d.text is string && d.text.size() >= 1 && d.text.size() <= 400
+          && d.anon is bool;
+      }
+
+      allow create: if isMe(request.resource.data.from)
+        && id == request.resource.data.book + '_' + request.auth.uid
+        && request.resource.data.keys().hasOnly(['book','from','anon','text','at','editedAt'])
+        && request.resource.data.book is string
+        && exists(/databases/$(database)/documents/books/$(request.resource.data.book))
+        && voiceBody(request.resource.data)
+        && request.resource.data.at == request.time
+        && request.resource.data.editedAt == null;
+
+      allow update: if isMe(resource.data.from)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['text','anon','editedAt'])
+        && voiceBody(request.resource.data)
+        && request.resource.data.editedAt == request.time;
+
+      allow delete: if isMe(resource.data.from);
+    }
+
     /* ── 本と主体 ───────────────────────────
        books/{isbn13}  : 書誌。to[] は entities の id を指す
 

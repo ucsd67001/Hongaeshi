@@ -257,13 +257,15 @@ function 流れる列(見出し, 添え, 本ら, 表, 並び){
   </section>`;
 }
 
+/* 声の1件。いまの声は voices（種＝ことば）だけ。返し・残しの形も古い記録のために残してある */
 const 声の行 = (v, 本を出す=false) => `<div class="声">
   <div class="素性"><b>${読書家の名(v.送り主, v.表示名||"読者", v.匿)}</b>
     ${本を出す?`<a onclick="go('book',{id:${引数(v.本)}})">『${逃(本を引く(v.本)?.題||v.本)}』</a>`:""}
-    ${v.種==="返し" ? `<span class="金">${pt(v.額)}</span>`
-                   : `<span class="札 注">残したい${v.約?" "+pt(v.約):""}</span>`}
-    <span>${いつ(v.時)}</span></div>
+    ${声の札(v)}
+    <span>${いつ(v.時)}${v.直した ? `（${いつ(v.直した)}に直した）` : ""}</span></div>
   <p>${逃(v.文)}</p></div>`;
+const 声の札 = v => v.種==="返し" ? `<span class="金">${pt(v.額)}</span>`
+                 : v.種==="残し" ? `<span class="札 注">残したい${v.約?" "+pt(v.約):""}</span>` : "";
 
 /* 登録申請への導線。
    ⚠️ 前は一覧の一番下にしか無くて、**見つけられなかった。**
@@ -435,29 +437,47 @@ const 番付の段 = (題, 行ら, 空の言葉) => `
 
 /* ⚠️ 物差しは「金額」だけにしない（2026-09-23）。ポイントは誰にでも 10,000pt 配られるので、
       金額の差は熱量より手持ちの差を映しがち。人数・冊数とことばの数でも並べられるようにした */
+/* ⚠️ 番付は上下の二段（2026-09-24）。推されている側（本・著者・出版社）と、
+      推している側（読書家）を1行に混ぜると、物差しを足したときに読めなくなるため。
+      上の段だけ並べ方を切り替える。下の段は、お金・ことば・棚づくりの3つを並べて、
+      それぞれの形の参加に1位がいることを見せる。 */
 function 番付たち(順, 物差し = "金額"){
+  return 推されている本(順, 物差し) + 熱心な読書家(順);
+}
+
+function 推されている本(順, 物差し = "金額"){
   if(!順) return "";
   const 差 = 順.物差し;
-  const 本と主体 = x => ({ 値:x[差.本と主体] || 0, 単位:差.単位.本と主体 });
-  const 主体行 = ら => ら.map(e=>({ 名:e.主体.名, ...本と主体(e), 押せる:true,
+  const 値 = x => ({ 値:x[差.項] || 0, 単位:差.単位 });
+  const 主体行 = ら => ら.map(e=>({ 名:e.主体.名, ...値(e), 押せる:true,
                                    先頁:"entity", 先id:e.id }));
   return `
   <section class="節" id="番付の節">
     <div class="節の頭">
-      <h2 class="節見出し">いま、推されているもの</h2>
+      <h2 class="節見出し">いま推されている本</h2>
       <div class="物差したち" role="group" aria-label="並べ方">
         ${Object.entries(土台.物差しら).map(([k, v])=>`<button class="釦 ${k===物差し?'':'枠だけ'} 小"
           aria-pressed="${k===物差し}" onclick="番付の物差し(${引数(k)})">${v.名}</button>`).join("")}
       </div>
     </div>
-    <div class="番付たち">
-      ${番付の段("本", 順.本.map(b=>({ 名:b.本.題, ...本と主体(b), 押せる:true,
+    <div class="番付たち 三つ">
+      ${番付の段("本", 順.本.map(b=>({ 名:b.本.題, ...値(b), 押せる:true,
                                       先頁:"book", 先id:b.id })), "まだありません")}
       ${番付の段("著者", 主体行(順.著者), "まだありません")}
       ${番付の段("出版社", 主体行(順.出版社), "まだありません")}
-      ${番付の段("熱心な読書家",
-          順.人.map(u=>({ 値:u[差.人] || 0, 単位:差.単位.人,
-                          印HTML: 読書家の名(u.id, u.名) })), "まだありません")}
+    </div>
+  </section>`;
+}
+
+function 熱心な読書家(順){
+  if(!順) return "";
+  return `
+  <section class="節">
+    ${節の頭("熱心な読書家", "お金・ことば・棚づくり、それぞれの形で本の世界を支えている人")}
+    <div class="番付たち 三つ">
+      ${順.読書家.map(m=>番付の段(m.名,
+          m.行ら.map(u=>({ 値:u[m.項] || 0, 単位:m.単位, 印HTML: 読書家の名(u.id, u.名) })),
+          "まだありません")).join("")}
     </div>
   </section>`;
 }
@@ -468,7 +488,7 @@ let 最後の数 = null;
 window.番付の物差し = k =>{
   現在.物差し = k;
   const 節 = document.getElementById("番付の節");
-  if(節 && 最後の数) 節.outerHTML = 番付たち(土台.番付(最後の数, 3, k), k);
+  if(節 && 最後の数) 節.outerHTML = 推されている本(土台.番付(最後の数, 3, k), k);
   else 描く();
 };
 
@@ -484,8 +504,8 @@ async function 頁_主体(){
     <button class="釦 枠だけ 小" style="margin-left:10px" onclick="go('home')">さがすへ</button></div></div>`;
 
   const 本ら = 土台.蔵書.filter(b=>b.受取.some(r=>r.id === 現在.id));
-  const { 明細, 合計 } = await 受取人の受取(現在.id);
-  const 声あり = 明細.filter(x=>x.文);
+  const [{ 明細, 合計 }, 声あり] = await Promise.all([
+    受取人の受取(現在.id), 土台.主体へのことば(現在.id)]);
 
   return `
   <section class="幕">
@@ -509,17 +529,11 @@ async function 頁_主体(){
   <section class="節">
     ${節の頭("読者からの声", 声あり.length + "件")}
     <div class="声の列">
-      ${声あり.length ? 声あり.map(受取の声).join("")
+      ${声あり.length ? 声あり.map(v=>声の行(v, true)).join("")
         : '<p class="節の注" style="padding:20px 0">まだありません。</p>'}
     </div>
   </section>`;
 }
-
-/* 受取人に届いた声の1件（主体のページと受取人の控えで同じ形） */
-const 受取の声 = i => `<div class="声">
-  <div class="素性"><b>『${逃(本を引く(i.本)?.題 || i.本)}』</b>
-    <span class="金">${pt(i.額)}</span><span>${いつ(i.時)}</span></div>
-  <p>${逃(i.文)}</p></div>`;
 
 /* ============================================================
    頁：さがす
@@ -711,8 +725,12 @@ async function 頁_本(){
     <button class="釦 枠だけ 小" style="margin-left:10px" onclick="go('home')">さがすへ</button></div></div>`;
 
   /* ⚠️ returns / keeps は公開読み取り。**入っていなくても集計と声が出る。** */
-  const [s, 声たち] = await Promise.all([本の集計(b.id), 本の声(b.id)]);
+  const [s, 声たち, 自分の声] = await Promise.all([本の集計(b.id), 本の声(b.id), 土台.私のことば(b.id)]);
   const 受 = 届け先(b);
+  /* ⚠️ ことばだけでも推せる（ポイント不要）。1冊に1つなので、あれば「直す」 */
+  const ことばの釦 = !入ってる
+    ? `<button class="釦 枠だけ" onclick="ログイン()">入ってことばを書く</button>`
+    : `<button class="釦 枠だけ" onclick="ことばを開く(${引数(b.id)})">${自分の声 ? "自分のことばを直す" : "ことばを書く"}</button>`;
 
   return `
   <div class="本の頭">
@@ -740,6 +758,7 @@ async function 頁_本(){
           ? `<button class="釦 朱" onclick="返し始め(${引数(b.id)})">この本に本返しする</button>
              <button class="釦 枠だけ" onclick="残し始め(${引数(b.id)})">残したい</button>`
           : `<button class="釦 藤" onclick="残し始め(${引数(b.id)})">この本を残したい</button>`}
+        ${ことばの釦}
       </div>
       ${b.Amazonら.length ? `<p style="margin-top:18px;display:flex;gap:9px;align-items:center;flex-wrap:wrap">
         ${b.Amazonら.map(a=>`<a href="${逃(a.url)}" target="_blank" rel="noopener sponsored nofollow"
@@ -779,10 +798,69 @@ async function 頁_本(){
     ${節の頭("読者からの声", 声たち.length+"件")}
     <div class="声の列">
       ${声たち.length ? 声たち.map(v=>声の行(v)).join("")
-        : '<p class="節の注" style="padding:20px 0">まだ声はありません。</p>'}
+        : '<p class="節の注" style="padding:20px 0">まだ声はありません。ポイントを返さなくても、ことばだけで推せます。</p>'}
     </div>
   </section>`;
 }
+
+/* ============================================================
+   覆い：ことばを書く・直す
+
+   ⚠️ ポイントは動かない。1冊に1人1つ。あれば直す（直した日が小さく出る）・消せる。
+   ============================================================ */
+let W = {};
+window.ことばを開く = async id=>{
+  const 今 = await 土台.私のことば(id);
+  W = { 本:id, 文:今?.文 || "", 匿:!!今?.匿, あり:!!今, 送信中:false };
+  ことば描く();
+};
+window.ことばの文 = v=>{ W.文 = v; };     // ⚠️ 描き直さない（打ちかけを消さない）
+
+function ことば描く(){
+  const b = 本を引く(W.本);
+  窓を出す(W.あり ? "自分のことばを直す" : "この本へのことば", `
+    <p class="節の注" style="margin:0">『${逃(b?.題 || W.本)}』を読んで、伝えたいことを。
+      <b style="color:var(--字)">ポイントは動きません。</b>1冊にひとつ、あとから直せます。</p>
+    <textarea class="欄" id="ことばの文" maxlength="${土台.ことばの長さ}" style="margin-top:14px"
+      placeholder="例）高校生の頃に読んで、進路を決めました。"
+      oninput="ことばの文(this.value)">${逃(W.文)}</textarea>
+    <label style="display:flex;align-items:center;gap:10px;margin-top:14px;
+      font-family:var(--ゴシック);font-size:12px;color:var(--字の薄い);cursor:pointer">
+      <input type="checkbox" id="ことばの匿" ${W.匿?"checked":""}> 匿名で届ける
+    </label>
+    <p class="節の注">本のページに公開されます。</p>
+    <button class="釦 全幅" style="margin-top:18px" ${W.送信中?"disabled":""} onclick="ことばを保存()">
+      ${W.送信中 ? "保存しています…" : W.あり ? "直す" : "ことばを届ける"}</button>
+    ${W.あり ? `<button class="釦 枠だけ 全幅" style="margin-top:10px" ${W.送信中?"disabled":""}
+      onclick="ことばを取り下げる()">このことばを消す</button>` : ""}`);
+}
+
+window.ことばを保存 = async ()=>{
+  if(W.送信中) return;
+  W.文 = document.getElementById("ことばの文")?.value ?? W.文;      // ⚠️ 送る直前に画面から読む
+  W.匿 = !!document.getElementById("ことばの匿")?.checked;
+  if(!W.文.trim()){ 知らせる("ことばを入れてください", true); return; }
+  W.送信中 = true; ことば描く();
+  try{
+    await 土台.ことばを書く({ 本id:W.本, 文:W.文, 匿:W.匿 });
+    覆い閉じ(); 知らせる(W.あり ? "直しました" : "ことばを届けました"); 描く();
+  }catch(e){
+    W.送信中 = false; ことば描く();
+    console.error(e); 知らせる("届けられませんでした：" + (e.code||e.message), true);
+  }
+};
+
+window.ことばを取り下げる = async ()=>{
+  if(W.送信中 || !confirm("このことばを消します。よろしいですか？")) return;
+  W.送信中 = true; ことば描く();
+  try{
+    await 土台.ことばを消す(W.本);
+    覆い閉じ(); 知らせる("消しました"); 描く();
+  }catch(e){
+    W.送信中 = false; ことば描く();
+    console.error(e); 知らせる("消せませんでした：" + (e.code||e.message), true);
+  }
+};
 
 /* ============================================================
    覆い：本返しする
@@ -793,10 +871,12 @@ let F = {};
 const 均等な配分 = ids => Object.fromEntries(
   ids.map((id,i)=>[id, Math.floor(100/ids.length) + (i===0 ? 100%ids.length : 0)]));
 
-window.返し始め = id=>{
+window.返し始め = async id=>{
   const b = 本を引く(id), 受 = 届け先(b);
   F = { 本:id, 段:1, 額:既定額, 自由:"", 文:"", 匿:false, 送信中:false,
-        配分:均等な配分(受.map(r=>r.id)) };
+        配分:均等な配分(受.map(r=>r.id)),
+        /* ⚠️ ことばは1冊に1つ。もう書いてあれば、3段目では書かせず「直す」へ案内する */
+        ことばあり: !!(await 土台.私のことば(id).catch(()=>null)) };
   返し描く();
 };
 window.額指定 = v=>{ F.額=v; F.自由=""; 返し描く(); };
@@ -877,9 +957,12 @@ function 返し描く(自由に){
 
   if(F.段===3){
     中 = `
-      <p class="節の注" style="margin:0 0 10px">この本に伝えたいことを。（任意・本のページに公開されます）</p>
-      <textarea class="欄" id="返しの文" maxlength="400" placeholder="例）高校生の頃に読んで、進路を決めました。"
-        oninput="文を書く(this.value)">${逃(F.文)}</textarea>
+      ${F.ことばあり
+        ? `<p class="節の注" style="margin:0 0 10px">この本には、もうあなたのことばがあります（1冊にひとつ）。
+             直したいときは、本のページの「自分のことばを直す」から。</p>`
+        : `<p class="節の注" style="margin:0 0 10px">この本に伝えたいことを。（任意・本のページに公開されます）</p>
+      <textarea class="欄" id="返しの文" maxlength="${土台.ことばの長さ}" placeholder="例）高校生の頃に読んで、進路を決めました。"
+        oninput="文を書く(this.value)">${逃(F.文)}</textarea>`}
       <label style="display:flex;align-items:center;gap:10px;margin-top:16px;
         font-family:var(--ゴシック);font-size:12px;color:var(--字の薄い);cursor:pointer">
         <input type="checkbox" id="返しの匿" ${F.匿?"checked":""} onchange="匿を決める(this.checked)"> 匿名で届ける
@@ -936,7 +1019,13 @@ window.返し確定 = async ()=>{
 
   F.送信中 = true; 返し描く();
   try{
-    await 本返しする({ 本id:F.本, 額:F.額, 内訳, 文:F.文, 匿:F.匿 });
+    await 本返しする({ 本id:F.本, 額:F.額, 内訳, 匿:F.匿 });
+    /* ことばは voices へ別に書く（1冊に1つ）。⚠️ 本返しはもう通っているので、
+       ことばだけ失敗しても本返しは取り消さない。知らせて、本のページから書き直してもらう */
+    if(!F.ことばあり && F.文.trim()){
+      try{ await 土台.ことばを書く({ 本id:F.本, 文:F.文, 匿:F.匿 }); }
+      catch(e){ console.error(e); 知らせる("本返しは届きました。ことばだけ届けられませんでした。本のページから書いてください", true); }
+    }
     F.送信中 = false; 段へ(4); 帯を描く();
   }catch(e){
     F.送信中 = false; 返し描く();
@@ -950,7 +1039,11 @@ window.返し確定 = async ()=>{
    覆い：残したい（ポイントは動かない）
    ============================================================ */
 let K = {};
-window.残し始め = id=>{ K={ 本:id, 約:1000, 文:"", 済:false, 送信中:false }; 残し描く(); };
+window.残し始め = async id=>{
+  K={ 本:id, 約:1000, 文:"", 済:false, 送信中:false,
+      ことばあり: !!(await 土台.私のことば(id).catch(()=>null)) };   // ⚠️ 返し始め と同じ
+  残し描く();
+};
 window.約指定 = v=>{ K.約=v; 残し描く(); };
 window.残す文を書く = v=>{ K.文 = v; };   // ⚠️ 理由は上の F の setter と同じ
 
@@ -969,9 +1062,12 @@ function 残し描く(){
       ${[0,500,1000,2000,3000,5000].map(v=>
         `<button class="${K.約===v?'いま':''}" onclick="約指定(${v})">${v===0?"額なし":v.toLocaleString()}</button>`).join("")}
     </div>
-    <p class="名札">この本への思い（任意・公開されます）</p>
-    <textarea class="欄" id="残しの文" maxlength="400" placeholder="例）古本で出会いました。子どもにも読ませたい。"
-      oninput="残す文を書く(this.value)">${逃(K.文)}</textarea>
+    ${K.ことばあり
+      ? `<p class="節の注" style="margin-top:18px">この本には、もうあなたのことばがあります（1冊にひとつ）。
+           直したいときは、本のページの「自分のことばを直す」から。</p>`
+      : `<p class="名札">この本への思い（任意・公開されます）</p>
+    <textarea class="欄" id="残しの文" maxlength="${土台.ことばの長さ}" placeholder="例）古本で出会いました。子どもにも読ませたい。"
+      oninput="残す文を書く(this.value)">${逃(K.文)}</textarea>`}
     <div class="断り 藤" style="margin-top:22px">
       これは支払いの約束ではなく、<b>需要のしるし</b>です。集まった額は「これだけの読者が待っている」として、
       出版社・権利者に示されます。</div>
@@ -987,7 +1083,12 @@ window.残し確定 = async ()=>{
   if(文欄) K.文 = 文欄.value;
   K.送信中 = true; 残し描く();
   try{
-    await 残したい({ 本id:K.本, 約:K.約, 文:K.文 });
+    await 残したい({ 本id:K.本, 約:K.約 });
+    /* ことばは voices へ（返し確定 と同じ。残したいは通っているので、失敗しても取り消さない） */
+    if(!K.ことばあり && K.文.trim()){
+      try{ await 土台.ことばを書く({ 本id:K.本, 文:K.文, 匿:false }); }
+      catch(e){ console.error(e); 知らせる("記録しました。ことばだけ届けられませんでした。本のページから書いてください", true); }
+    }
     K.送信中 = false; K.済 = true; 残し描く();
   }catch(e){
     K.送信中 = false; 残し描く();
@@ -1299,8 +1400,11 @@ async function 頁_私(){
       <tr><th>本</th><th>種類</th><th class="右">額</th><th>ことば</th><th>いつ</th></tr>
       ${行.length ? 行.map(r=>{const b=本を引く(r.本);return `<tr>
         <td class="本"><a onclick="go('book',{id:${引数(r.本)}})">${逃(b?.題||r.本)}</a></td>
-        <td>${r.種==="返し"?'<span class="札 済">本返し</span>':'<span class="札 注">残したい</span>'}</td>
-        <td class="右">${r.種==="返し"?r.額.toLocaleString():(r.約?r.約.toLocaleString()+"の意思":"―")}</td>
+        <td>${r.種==="返し" ? '<span class="札 済">本返し</span>'
+            : r.種==="残し" ? '<span class="札 注">残したい</span>'
+            : `<span class="札 藤">ことば</span>${r.匿 ? '<span class="節の注" style="display:inline;margin-left:6px">匿名</span>' : ""}`}</td>
+        <td class="右">${r.種==="返し" ? r.額.toLocaleString()
+            : r.種==="残し" ? (r.約 ? r.約.toLocaleString()+"の意思" : "―") : "―"}</td>
         <td style="color:var(--字の薄い);max-width:34ch">${逃(r.文)||"―"}</td>
         <td style="color:var(--字のごく薄い);white-space:nowrap">${いつ(r.時)}</td></tr>`}).join("")
       : '<tr><td colspan="5" style="color:var(--字のごく薄い)">まだ記録がありません。本をさがして、返してみてください。</td></tr>'}
@@ -1357,7 +1461,7 @@ async function 頁_読書家(){
       ${しるし(土台.印を引く(uid, 名), "大")}
       <h1 class="大見出し" style="font-size:clamp(25px,3.2vw,34px);margin:0">${逃(名)}</h1>
     </div>
-    <p class="導き">${自分 ? "あなたのページです。" : ""}名前を出して届けた本返しと、残したい本のことば。
+    <p class="導き">${自分 ? "あなたのページです。" : ""}名前を出して届けた本返しと、ことば。
       匿名で届けた分は出ていません。</p>
     <div class="数字たち">
       ${数字("Count", 返し.length, "本返しした回数")}
@@ -1376,9 +1480,8 @@ async function 頁_読書家(){
     <div class="声の列">
       ${ことば.length ? ことば.map(v=>`<div class="声">
         <div class="素性"><a onclick="go('book',{id:${引数(v.本)}})">『${逃(本を引く(v.本)?.題 || v.本)}』</a>
-          ${v.種==="返し" ? `<span class="金">${pt(v.額)}</span>`
-                         : `<span class="札 注">残したい${v.約 ? " " + pt(v.約) : ""}</span>`}
-          <span>${いつ(v.時)}</span></div>
+          ${声の札(v)}
+          <span>${いつ(v.時)}${v.直した ? `（${いつ(v.直した)}に直した）` : ""}</span></div>
         <p>${逃(v.文)}</p></div>`).join("")
         : '<p class="節の注" style="padding:20px 0">まだありません。</p>'}
     </div>
@@ -1414,8 +1517,8 @@ async function 頁_受取人(){
   if(!選) return `<div class="節"><div class="断り">受取人がまだいません。</div></div>`;
 
   const 本人 = 見える.find(x=>x.id===選) || 見える[0];
-  const { 明細, 合計 } = await 受取人の受取(選);
-  const 声あり = 明細.filter(x=>x.文);
+  const [{ 明細, 合計 }, 声あり] = await Promise.all([
+    受取人の受取(選), 土台.主体へのことば(選)]);
 
   return `
   <section class="幕">
@@ -1449,7 +1552,7 @@ async function 頁_受取人(){
   <section class="節">
     ${節の頭("読者の声", "購買データでは決して取れない、読後の感情")}
     <div class="声の列">
-      ${声あり.length ? 声あり.map(受取の声).join("")
+      ${声あり.length ? 声あり.map(v=>声の行(v, true)).join("")
       : '<p class="節の注" style="padding:20px 0">まだありません。</p>'}
     </div>
     <div class="断り 藤" style="margin-top:28px">
