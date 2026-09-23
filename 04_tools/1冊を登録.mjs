@@ -24,6 +24,7 @@ import { readFileSync } from "node:fs";
 import { initializeApp, cert } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { openBDで引く, 著者をばらす, 読める名に, 主体のid, 出版社キー, 著者キー } from "./書誌.mjs";
+import { 名前をととのえる } from "../public/名寄せ.js";
 
 const 引数 = process.argv.slice(2);
 const 下見 = 引数.includes("--下見");
@@ -53,7 +54,7 @@ const 著者名ら = 取る("--著者")
   ? [取る("--著者")]
   : 著者をばらす(o?.著).filter(a=>a.役 === "著")
       .map(a=>読める名に(a.名)).filter(n=>n && !除ける.test(n));
-const 版元 = 取る("--出版社") || o?.版元 || null;
+const 版元 = 名前をととのえる(取る("--出版社") || o?.版元 || "") || null;
 
 const 受取 = [], 主体 = [];
 const 足す = (type, 名)=>{

@@ -26,7 +26,7 @@
 import { readFileSync } from "node:fs";
 import { initializeApp, cert } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
-import { 主体のid, 出版社キー, 著者キー } from "../public/名寄せ.js";
+import { 主体のid, 出版社キー, 著者キー, 名前をととのえる } from "../public/名寄せ.js";
 
 /* ISBN → 正しい著者（複数可）。翻訳者は入れない（いまの方針） */
 const 直す表 = {
@@ -70,6 +70,9 @@ const 直す表 = {
   "9784794207272": ["ジョナサン・リットマン"],        // 同 下
   "9784003311516": ["岡倉覚三"],                      // 茶の本（村岡博は訳）
   "9784560090008": ["J.D.サリンジャー"],              // キャッチャー・イン・ザ・ライ
+
+  // ⚠️ 「Ado 小松成美」は2人（Adoが語り手、小松成美が書き手）。機械には割れない
+  "9784048976602": ["Ado"],                          // ビバリウム
 };
 
 const 下見 = process.argv.includes("--下見");

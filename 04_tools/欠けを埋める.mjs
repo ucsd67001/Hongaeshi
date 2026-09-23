@@ -23,7 +23,7 @@ import { readFileSync } from "node:fs";
 import { initializeApp, cert } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { 取得 } from "./書誌.mjs";
-import { 主体のid, 出版社キー } from "../public/名寄せ.js";
+import { 主体のid, 出版社キー, 名前をととのえる } from "../public/名寄せ.js";
 
 const 下見 = process.argv.includes("--下見");
 const 鍵の場所 = process.env.HONGAESHI_KEY;
@@ -54,7 +54,7 @@ const 直す = [], 作る主体 = new Map();
 for(const d of 欠け){
   const x = d.data();
   const n = await NDLでISBNを引く(x.isbn);
-  const 版元 = x.publisherText || n?.版元 || null;
+  const 版元 = x.publisherText || 名前をととのえる(n?.版元 || "") || null;
   const 年   = x.year || (n?.年 ? Number(n.年) : null);
 
   const 中身 = {};

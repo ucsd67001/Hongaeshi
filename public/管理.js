@@ -21,7 +21,7 @@
    ============================================================ */
 
 import * as 土台 from "./共通.js";
-import { 主体のid, 読める名に, 著者をばらす, 出版社キー, 著者キー } from "./名寄せ.js";
+import { 主体のid, 読める名に, 著者をばらす, 出版社キー, 著者キー, ゆるいキー } from "./名寄せ.js";
 const { 逃, pt, いつ, 知らせる } = 土台;
 
 const {
@@ -177,13 +177,16 @@ async function 頁_主体の管理(){
 
   /* 似ているものを拾って上に出す。
      ⚠️ あくまで**候補**。自動では統合しない。同姓同名を潰す危険があるため。 */
-  const 候補 = [];
-  for(let i=0;i<主体ら.length;i++) for(let j=i+1;j<主体ら.length;j++){
-    const a = 主体ら[i], b = 主体ら[j];
-    if(a.型 !== b.型) continue;
-    const x = a.名.replace(/\s/g,""), y = b.名.replace(/\s/g,"");
-    if(x.includes(y) || y.includes(x)) 候補.push([a,b]);
-  }
+  /* ⚠️ 判定は public/名寄せ.js の ゆるいキー に任せる。
+        記号・長音符・空白を落として比べるので、
+        「ハンス・フィッシャー」と「ハンスフィッシャ－」が同じに見える。
+        **候補でしかない。自動では統合しない。** */
+  const 束ね = new Map();
+  主体ら.forEach(e=>{
+    const k = e.型 + ":" + ゆるいキー(e.名);
+    (束ね.get(k) || 束ね.set(k, []).get(k)).push(e);
+  });
+  const 候補 = [...束ね.values()].filter(ら=>ら.length > 1).map(ら=>[ら[0], ら[1]]);
 
   return `
   ${候補.length ? `<section class="節">

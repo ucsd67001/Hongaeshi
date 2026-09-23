@@ -42,6 +42,7 @@ import { initializeApp, cert } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { openBDで引く, 著者をばらす, 読める名に, 主体のid, 出版社キー, 著者キー }
   from "./書誌.mjs";
+import { 名前をととのえる } from "../public/名寄せ.js";
 const 実行 = promisify(execFile);
 
 export const アソシエイトタグ = "ucsd67001-22";
@@ -115,7 +116,7 @@ async function 本をこしらえる(isbn, 正URL, ラベル){
       key: type==="publisher" ? 出版社キー(名) : 著者キー(名) });
   };
   著者名ら.forEach(n=>足す("author", n));
-  足す("publisher", o.版元);
+  足す("publisher", 名前をととのえる(o.版元));
 
   return {
     isbn, title:題, subtitle: 副.join(" : ") || null,
