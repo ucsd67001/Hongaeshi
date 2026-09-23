@@ -62,13 +62,47 @@ function go(頁, 他={}, 履歴に積む=true){
            : 頁==="books" ? ("/books" + (他.q||他.並び
                ? "?" + new URLSearchParams({...(他.q?{q:他.q}:{}), ...(他.並び?{s:他.並び}:{})}) : ""))
            : (他.q ? "/?q="+encodeURIComponent(他.q) : "/");
-  if(履歴に積む) history.pushState(null,"",道);
-  window.scrollTo(0,0);
+  if(履歴に積む){
+    位置を覚える();                         // ⚠️ 積む**前に**、いまのページの履歴へ書く
+    history.pushState({ y:0 }, "", 道);
+  }
+  window.scrollTo({ top:0, behavior:"instant" });
   描く();
 }
 window.go = go;
 window.描き直す = ()=> 描く();      // 管理画面から呼ぶ
-window.addEventListener("popstate", ()=>{ 現在 = 道を読む(); 描く(); });
+
+/* ── 戻ったときに、元の位置へ ─────────────────────
+   ⚠️⚠️ ブラウザ任せにすると、一覧から本へ行って戻ったときに**一番上へ戻っていた。**
+      戻ると「読み込んでいます」に差し替えてから描くので、その瞬間ページが短くなり、
+      ブラウザが覚えていた位置へ戻れないため（2026-09-23 に直した）。
+   → 位置は自分で覚える。移る前に history.state に書き、戻ったら**描き終わってから**そこへ。
+   ⚠️ html は scroll-behavior:smooth なので、戻すときは必ず instant を付ける
+      （付けないと、上から流れて降りてくる）。 */
+history.scrollRestoration = "manual";
+const 位置を覚える = () =>
+  history.replaceState({ ...(history.state || {}), y: Math.round(window.scrollY) }, "");
+/* 読み直し（F5）にもそなえて、スクロールが止まるたびに覚える。
+   ⚠️ pagehide で書く形は、Chrome では残らなかった（読み直すと、その前に覚えた位置へ戻った）。
+   ⚠️ replaceState は短い間に呼びすぎるとブラウザに止められるので、止まってから 250ms 後にだけ書く */
+let 覚える予約 = 0;
+window.addEventListener("scroll", ()=>{
+  clearTimeout(覚える予約);
+  覚える予約 = setTimeout(位置を覚える, 250);
+}, { passive:true });
+
+/* ⚠️ 戻る位置は、**描き直す前に**読んでおく。描いている途中はページが短くなって
+      スクロールが起き、上の「止まるたびに覚える」が小さい値で上書きしてしまう */
+const 覚えた位置 = () => history.state?.y || 0;
+/* ⚠️ 0 のときも必ず動かす。「0 なら何もしない」にしていたら、進むで本のページへ行ったとき、
+      描き直しの途中でページが短くなったときの中途半端な位置（1025px）に止まっていた */
+const 位置へ = y => window.scrollTo({ top:y || 0, behavior:"instant" });
+window.addEventListener("popstate", async ()=>{
+  const y = 覚えた位置();
+  現在 = 道を読む();
+  await 描く();
+  位置へ(y);
+});
 
 /* ============================================================
    帯
@@ -1508,7 +1542,14 @@ async function 頁_しくみ(){
    はじまり
    ============================================================ */
 現在 = 道を読む();
-起動(async ()=>{ await 土台.権限をしらべる(); 描く(); }).catch(e=>{
+/* ⚠️ 起動の知らせは、ログイン・ログアウトのたびにも来る。
+      位置を戻すのは最初の1回だけ（読んでいる途中で飛ばさない） */
+let 初回 = true;
+const 起動時の位置 = 覚えた位置();        // ⚠️ 描く前に読む（理由は popstate と同じ）
+起動(async ()=>{
+  await 土台.権限をしらべる(); await 描く();
+  if(初回){ 初回 = false; 位置へ(起動時の位置); }
+}).catch(e=>{
   console.error(e);
   画面.innerHTML = `<div class="節"><div class="断り">
     <b>Firebase の設定が読めませんでした。</b><br>
