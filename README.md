@@ -56,10 +56,11 @@
 | 画面での呼び名 | Firestore | 主な項目 |
 |---|---|---|
 | 財布 | `wallets` | `balance` / `granted` / `created` |
-| 返し | `returns` | `book` / `from` / `amount` / `parts` / `toIds` / `text` / `at` |
+| 返し | `returns` | `book` / `from` / `anon` / `amount` / `parts` / `toIds` / `text` / `at` |
 | 残し | `keeps` | `book` / `from` / `pledge` / `text` / `at` |
 | 本 | `books` | `isbn` / `title` / `authorText` / `publisherText` / `year` / `pages` / `cover` / `amazonLinks` / `to[]` |
 | 主体 | `entities` | `type` / `name` / `key` / `aliases` / `claimed` / `claimedBy` |
+| 名乗り | `users` | `name` / `updatedAt`　⚠️ 表示名はここだけ。記録に焼き付けない |
 | 申請 | `requests` | `title` / `author` / `publisher` / `isbn` / `memo` / `done` |
 | 管理者 | `admins` | uid があれば管理者。**画面からは書けない** |
 
@@ -131,6 +132,17 @@ node 04_tools/名寄せを点検.mjs --統合 <残すid> <消すid>…
 
 ⚠️ `admins` は**ルールで書き込み禁止**。増やせるのは Admin SDK からだけ
 （画面から増やせると「管理者が自分で管理者を作れる」入口になる）。
+
+### 表示名は記録に焼き付けない
+
+⚠️⚠️ 表示名は `users/{uid}` にだけ持ち、画面で引く。**`returns` / `keeps` に名前を保存しない。**
+
+記録は書き換えない決まり（`allow update: if false`）なので、焼き付けると
+**あとから名前を変えても過去の分に本名が残る。**
+「Googleの本名を出したくない」と気づくのは、たいてい1回投稿した後。
+
+名乗りを決めていない人は、Googleの表示名をその場で使うだけで、保存しない。
+決めた人だけ `users` に入る。帯の自分の名前から設定を開ける。
 
 ### 未ログインでも棚は見える
 

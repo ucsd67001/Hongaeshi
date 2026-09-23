@@ -70,6 +70,41 @@ export let 主体表 = new Map();   // entities。id → { 型, 名, 認証 }
    ============================================================ */
 export let 権限 = { 管理者:false, 受取人:[] };
 
+/* ============================================================
+   名乗り（表示名）
+
+   ⚠️⚠️ **表示名を記録に焼き付けない。**users/{uid} にだけ持ち、画面で引く。
+      記録は書き換えない決まりなので、焼き付けると
+      **あとから名前を変えても過去の分に本名が残る。**
+      「Googleの本名を出したくない」と気づくのは、たいてい1回投稿した後。
+
+   ⚠️ 名乗りを決めていない人は、Googleの表示名を**その場で使うだけ**
+      （保存しない）。決めた人だけ users に入る。
+   ============================================================ */
+export let 名乗り表 = new Map();   // uid → 名
+
+export const 私の名 = () =>
+  名乗り表.get(私?.uid) || 私?.displayName || "読者";
+
+export function 名を引く(uid){
+  return 名乗り表.get(uid) || "読者";
+}
+
+export async function 名乗りらをよみこむ(){
+  const s = await getDocs(collection(db, "users"));
+  名乗り表 = new Map(s.docs.map(d=>[d.id, d.data().name]));
+  return 名乗り表;
+}
+
+export async function 名乗りを決める(名){
+  if(!私) throw new Error("ログインしていません");
+  const n = (名 || "").trim().slice(0, 24);
+  if(!n) throw new Error("名前を入れてください");
+  await setDoc(doc(db, "users", 私.uid), { name:n, updatedAt:new Date().toISOString() });
+  名乗り表.set(私.uid, n);
+  return n;
+}
+
 export async function 権限をしらべる(){
   if(!私){ 権限 = { 管理者:false, 受取人:[] }; return 権限; }
   const [a, e] = await Promise.all([
@@ -95,7 +130,10 @@ export async function 起動(認証が変わったら){
 
   /* ⚠️ 本と主体は**ログインを待たずに**読む。ルールで公開してあるので取れる。
         入る前の画面にも棚を出したいため。 */
-  const 棚 = 蔵書をよみこむ().catch(e=>{ console.error(e); });
+  const 棚 = Promise.all([
+    蔵書をよみこむ(),
+    名乗りらをよみこむ().catch(e=>{ console.error(e); })
+  ]).catch(e=>{ console.error(e); });
 
   onAuthStateChanged(auth, async user=>{
     私 = user;
@@ -257,11 +295,8 @@ export async function 本返しする({ 本id, 額, 内訳, 文, 匿 }){
   束.set(doc(collection(db,"returns")), {
     book: 本id,
     from: 私.uid,
-    /* ⚠️⚠️ **匿名なら、名前を保存しない。**
-       前は匿名でも名前を入れて、画面で隠しているだけだった。
-       記録は誰でも読めるので、それでは隠したことにならない。
-       消せない記録に名前を残さないこと。 */
-    name: 匿 ? "" : (私.displayName || "読者").slice(0,40),
+    /* ⚠️⚠️ **名前は保存しない。**users/{uid} から画面で引く。
+       焼き付けると、名前を変えても過去の分に古い名前が残る。 */
     anon: !!匿,
     amount: 額,
     parts,
@@ -288,7 +323,6 @@ export async function 残したい({ 本id, 約, 文 }){
   await setDoc(doc(collection(db,"keeps")), {
     book: 本id,
     from: 私.uid,
-    name: (私.displayName || "読者").slice(0,40),
     pledge: 約,
     text: (文||"").slice(0,400),
     at: serverTimestamp()
@@ -310,7 +344,7 @@ export async function 登録を申請する({ 題, 著, 版元, isbn, 覚書 }){
   if(!私) throw new Error("ログインしていません");
   await setDoc(doc(collection(db, "requests")), {
     from: 私.uid,
-    name: (私.displayName || "読者").slice(0,40),
+    name: 私の名().slice(0,40),      // ⚠️ 名乗りを使う（Googleの本名を出さない）
     title: (題 || "").slice(0,200),
     author: (著 || "").slice(0,100),
     publisher: (版元 || "").slice(0,100),
@@ -337,12 +371,12 @@ export async function ISBNで確かめる(isbn){
    Firestore の姿 → 画面の姿
    ============================================================ */
 const 返しを直す = x => ({
-  種:"返し", 本:x.book, 表示名:x.name, 匿:!!x.anon,
+  種:"返し", 本:x.book, 表示名:x.anon ? "匿名" : 名を引く(x.from), 匿:!!x.anon,
   額:x.amount||0, 内訳:(x.parts||[]).map(p=>({受取人:p.to, 名:p.name, 額:p.amount})),
   文:x.text||"", 時:x.at
 });
 const 残しを直す = x => ({
-  種:"残し", 本:x.book, 表示名:x.name, 匿:false,
+  種:"残し", 本:x.book, 表示名:名を引く(x.from), 匿:false,
   約:x.pledge||0, 文:x.text||"", 時:x.at
 });
 
@@ -407,7 +441,8 @@ export async function まとめて数える(){
 
     if(x.from){
       const u = 人欄(x.from); u.件数++; u.金額 += x.amount || 0;
-      if(!x.anon && x.name) u.名 = x.name;       // ⚠️ 匿名の分は名前に使わない
+      /* ⚠️ 匿名で送った分は名前に使わない。匿名だけの人は「匿名」のまま並ぶ */
+      if(!x.anon) u.名 = 名を引く(x.from);
     }
   });
   残.docs.forEach(d=>{ const x=d.data(); const b=本欄(x.book); b.残数++; b.約額 += x.pledge||0; });
@@ -472,7 +507,7 @@ export async function 受取人の受取(受取id){
   const 明細 = 返.docs.map(d=>{
     const x = d.data();
     const 行 = (x.parts||[]).find(p=>p.to===受取id);
-    return { 本:x.book, 名:x.anon?"匿名":x.name, 額:Math.round((行?.amount||0)*0.9), 文:x.text||"", 時:x.at };
+    return { 本:x.book, 名:x.anon?"匿名":名を引く(x.from), 額:Math.round((行?.amount||0)*0.9), 文:x.text||"", 時:x.at };
   }).filter(x=>x.額>0);
   return { 明細, 合計: 明細.reduce((s,x)=>s+x.額,0) };
 }

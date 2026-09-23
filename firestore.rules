@@ -106,8 +106,11 @@ service cloud.firestore {
     }
 
     /* ── 返し ───────────────────────────────
-       returns/{id} : { book, from, name, anon:bool, amount:int,
+       returns/{id} : { book, from, anon:bool, amount:int,
                         parts:[{to,name,amount}], toIds:[string], text, at }
+
+       ⚠️ **name は持たない。**表示名は users/{uid} から引く。
+          焼き付けると、名前を変えても過去の分に古い名前が残る。
 
        ⚠️ toIds は array-contains で引くためだけの控え。
           parts と食い違わないよう、ここで突き合わせる。 */
@@ -151,14 +154,12 @@ service cloud.firestore {
 
       allow create: if isMe(request.resource.data.from)
         && request.resource.data.keys().hasOnly(
-             ['book','from','name','anon','amount','parts','toIds','text','at'])
+             ['book','from','anon','amount','parts','toIds','text','at'])
         && request.resource.data.book is string
         && request.resource.data.amount is int
         && request.resource.data.amount >= 100
         && request.resource.data.amount <= 50000
         && request.resource.data.anon is bool
-        && request.resource.data.name is string
-        && request.resource.data.name.size() <= 40
         && request.resource.data.text is string
         && request.resource.data.text.size() <= 400
         && request.resource.data.at == request.time
@@ -169,7 +170,7 @@ service cloud.firestore {
     }
 
     /* ── 残し ───────────────────────────────
-       keeps/{id} : { book, from, name, pledge:int, text, at }
+       keeps/{id} : { book, from, pledge:int, text, at }   ⚠️ name は持たない（returns と同じ）
 
        ⚠️ **お金は1ポイントも動かない。**「復刊したら払う」という意思だけ。
           だから財布には触れないし、触らせない。 */
@@ -179,13 +180,11 @@ service cloud.firestore {
       allow update, delete: if false;
 
       allow create: if isMe(request.resource.data.from)
-        && request.resource.data.keys().hasOnly(['book','from','name','pledge','text','at'])
+        && request.resource.data.keys().hasOnly(['book','from','pledge','text','at'])
         && request.resource.data.book is string
         && request.resource.data.pledge is int
         && request.resource.data.pledge >= 0
         && request.resource.data.pledge <= 50000
-        && request.resource.data.name is string
-        && request.resource.data.name.size() <= 40
         && request.resource.data.text is string
         && request.resource.data.text.size() <= 400
         && request.resource.data.at == request.time;
@@ -215,6 +214,23 @@ service cloud.firestore {
     /* ⚠️ 本と主体は**ログインしていなくても読める。**書誌は秘密ではないし、
           入る前に棚が見えたほうが参加してもらいやすい。
           返し・残し・財布は今までどおり認証が要る。 */
+    /* ── 利用者の名乗り ───────────────────────
+       users/{uid} : { name, updatedAt }
+
+       ⚠️⚠️ **表示名を returns に焼き付けない。**ここだけに持ち、画面で引く。
+          記録は書き換えない決まりなので、焼き付けると
+          **あとから名前を変えても過去の分に本名が残る。**
+          「本名を出したくない」と気づくのは、たいてい1回投稿した後。
+       ⚠️ 誰でも読める（読者の声に名前を出すため）。書けるのは本人だけ。 */
+    match /users/{uid} {
+      allow read: if true;
+      allow write: if isMe(uid)
+        && request.resource.data.keys().hasOnly(['name','updatedAt'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 1
+        && request.resource.data.name.size() <= 24;
+    }
+
     match /admins/{uid} {
       allow get: if isMe(uid);       // 自分が管理者かどうかだけ確かめられる
       allow list, write: if false;   // 一覧も作成も、画面からはできない

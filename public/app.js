@@ -74,14 +74,19 @@ function 帯を描く(){
   帯のnav.innerHTML = 品
     .map(([k,l])=>`<button class="${現在.頁===k?'いま':''}" onclick="go('${k}')">${l}</button>`).join("");
 
+  /* ⚠️ 名前は Google のものではなく**名乗り**を出す。
+        本名を出したくない人がいるので、決めていれば必ずそちらを使う。 */
   帯の右.innerHTML = 土台.私 ? `
-    <div class="財布" title="${逃(土台.私.displayName||"")}">
+    <div class="財布">
       <div class="残">${(土台.財布?.残高 ?? 0).toLocaleString()}<span>PT</span></div>
+    </div>
+    <button class="わたし" onclick="設定をひらく()" title="設定">
       ${土台.私.photoURL
         ? `<img class="顔写真" src="${逃(土台.私.photoURL)}" alt="" referrerpolicy="no-referrer">`
         : `<div class="顔写真"></div>`}
-    </div>
-    <button class="釦 枠だけ 小" onclick="ログアウト()">出る</button>`
+      <span class="名">${逃(土台.私の名())}</span>
+      <span class="印">▾</span>
+    </button>`
   : `<button class="釦 小" onclick="ログイン()">Googleで入る</button>`;
 }
 window.ログイン  = ()=> 入る();
@@ -997,6 +1002,63 @@ window.申請を出す = async ()=>{
   }catch(e){
     S.送信中 = false; 申請描く();
     console.error(e); 知らせる("送れませんでした：" + (e.code||e.message), true);
+  }
+};
+
+
+/* ============================================================
+   覆い：設定
+
+   ⚠️ **Googleの表示名をそのまま出さない。**本名で登録している人が多く、
+      「この本に救われた」と本名で書きたくない人がいる。
+      名乗りを決めれば、**過去の分もすべてその名前に変わる**
+      （記録に名前を焼き付けていないので）。
+   ============================================================ */
+let 設定中 = { 送信中:false };
+
+window.設定をひらく = ()=>{ 設定中 = { 名: 土台.私の名(), 送信中:false }; 設定描く(); };
+
+function 設定描く(){
+  const 決めてある = 土台.名乗り表.has(土台.私?.uid);
+  窓.innerHTML = `
+  <div class="覆い" onclick="if(event.target===this)覆い閉じ()">
+    <div class="窓">
+      <div class="窓の頭"><h3>設定</h3>
+        <button class="閉じる" onclick="覆い閉じ()">✕</button></div>
+      <div class="窓の中">
+        <p class="名札" style="margin-top:0">表示する名前</p>
+        <input class="欄" id="設定の名" maxlength="24" value="${逃(設定中.名 || "")}"
+          placeholder="本の世界に出したい名前">
+        <p class="節の注">
+          読者の声や番付に、この名前が出ます。${決めてある ? ""
+            : "<br>いまは Google のアカウント名がそのまま出ています。"}
+          <br><b>変えると、過去に送った分もすべて新しい名前に変わります。</b>
+          （記録に名前を焼き付けていないため）
+          <br>1回ずつ「匿名で届ける」を選ぶこともできます。</p>
+        <button class="釦 全幅" style="margin-top:18px" ${設定中.送信中?"disabled":""}
+          onclick="名乗りを保存()">${設定中.送信中?"保存しています…":"この名前にする"}</button>
+
+        <div style="border-top:1px solid var(--罫);margin-top:26px;padding-top:20px">
+          <p class="節の注" style="margin:0 0 12px">
+            ${逃(土台.私?.email || "")} で入っています。</p>
+          <button class="釦 枠だけ 全幅" onclick="覆い閉じ();ログアウト()">出る（ログアウト）</button>
+        </div>
+      </div>
+    </div></div>`;
+}
+
+window.名乗りを保存 = async ()=>{
+  if(設定中.送信中) return;
+  const 名 = document.getElementById("設定の名")?.value.trim() || "";
+  if(!名){ 知らせる("名前を入れてください", true); return; }
+  設定中.名 = 名; 設定中.送信中 = true; 設定描く();
+  try{
+    await 土台.名乗りを決める(名);
+    覆い閉じ(); 知らせる("名前を変えました");
+    描く();
+  }catch(e){
+    設定中.送信中 = false; 設定描く();
+    console.error(e); 知らせる("変えられませんでした：" + (e.code||e.message), true);
   }
 };
 
