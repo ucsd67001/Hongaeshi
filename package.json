@@ -1,0 +1,16 @@
+{
+  "name": "hongaeshi",
+  "version": "1.0.0",
+  "description": "読み終わったあとに、その本を支えた人（著者・出版社・独立系書店）へ気持ちを返す場所。",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "firebase-admin": "^14.4.0"
+  }
+}

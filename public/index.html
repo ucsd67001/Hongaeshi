@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>本返し ― 読んだあとに、ありがとうを。</title>
+<meta name="description" content="読み終わったあとに、その本を支えた人へ気持ちを返す場所。著者・出版社・独立系書店へ、100ptから。">
+<meta property="og:title" content="本返し ― 読んだあとに、ありがとうを。">
+<meta property="og:description" content="買うだけでは届かなかった気持ちを、著者・出版社・書店へ。">
+<meta property="og:image" content="https://hongaeshi.web.app/看板.webp">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#f8f6fc">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="apple-touch-icon" href="/favicon-180.png">
+<link rel="manifest" href="/site.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Old+Mincho:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="preload" as="image" href="/看板.webp">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<div class="帯"><div class="枠 中">
+  <div class="銘" onclick="go('home')"><span class="粒">◆</span>本返し</div>
+  <span class="試用札">架空のポイントで試用中</span>
+  <nav id="nav"></nav>
+  <div id="帯の右" style="display:flex;align-items:center;gap:16px"></div>
+</div></div>
+
+<main id="画面" class="枠"></main>
+
+<div class="枠"><div class="裾">
+  <span>本返し ― トライアル。ポイントは架空のもので、実際のお金は動きません。</span>
+  <a href="/about" onclick="event.preventDefault();go('about')">しくみ</a>
+  <a href="/demo">ダミーデータのデモ</a>
+  <!-- ⚠️ Amazonアソシエイトの規約で、サイト上に参加の表示が要る。
+       個々のリンク横の「広告リンクです」だけでは足りない。 -->
+  <span>本返しは Amazon アソシエイト・プログラムの参加者です。適格販売により収入を得ています。</span>
+</div></div>
+
+<div id="窓"></div>
+
+<script type="module" src="/app.js"></script>
+</body>
+</html>

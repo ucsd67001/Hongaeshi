@@ -1,0 +1,255 @@
+rules_version = '2';
+
+/* ============================================================
+   本返し ― Firestore のきまり
+
+   ⚠️⚠️ **ここだけは日本語の名前が使えない。**
+      セキュリティルールの言語は、識別子（コレクション名・フィールド名・
+      関数名）に ASCII しか受け付けない。日本語を書くと
+      「token recognition error」で デプロイが落ちる。**コメントは通る。**
+      アプリ側とUIは日本語のままにして、`public/共通.js` が
+      読み書きのときにこの名前へ読み替えている。
+
+        財布 → wallets   { balance, granted, created }
+        返し → returns   { book, from, name, anon, amount, parts, toIds, text, at }
+        残し → keeps     { book, from, name, pledge, text, at }
+
+   ⚠️ トライアルは**架空のお金（本返しポイント）**で動く。
+      実際の決済はどこにも無い。それでも、残高を自分で書き換えられては
+      数字が読めなくなるので、**お金にまつわる整合性だけはルールで守る。**
+
+   ⚠️ **Cloud Functions を使わない設計。**（＝Blazeプラン不要）
+      受取人の受取額や本の集計は、returns の記録を集計クエリで出す。
+      サーバー側で足し込むカウンタを持たないので、書き込みは
+      「自分の財布を減らす」＋「返しを1件作る」の2つだけで済む。
+
+   ⚠️ そのかわり、**この2つが必ず釣り合っていること**を
+      getAfter() で縛る。getAfter はバッチ／トランザクションが
+      終わったあとの姿を見るので、「財布がちょうど額のぶん減ったか」を
+      返しの作成時に確かめられる。
+      → アプリ側は必ず writeBatch で財布の更新と返しの作成を
+        **同時に**送ること。別々に送ると必ず落ちる。
+   ============================================================ */
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /* ── 使いまわす判定 ──────────────────────── */
+
+    function isMe(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    /* ⚠️ 管理者は admins にドキュメントがあるかどうかで決める。
+          admins は**書き込み禁止**にしてあるので、増やせるのは
+          Admin SDK（04_tools/管理者にする.mjs）からだけ。
+          画面から増やせると「管理者が自分で管理者を作れる」入口になる。 */
+    function isAdmin() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    /* 「2026-09」の形。サーバーの時計から作るので、端末の時計はいじれない */
+    function thisMonth() {
+      return string(request.time.year()) + '-'
+        + (request.time.month() < 10 ? '0' : '')
+        + string(request.time.month());
+    }
+
+    function walletPath(uid) {
+      return /databases/$(database)/documents/wallets/$(uid);
+    }
+
+    /* ── 財布 ───────────────────────────────
+       wallets/{uid} : { balance:int, granted:[string], created:timestamp }
+
+       ⚠️ 残高を増やせるのは**月に一度の配布だけ。**
+          しかも増やせる額は 3000 ちょうどで、
+          その月がまだ granted に入っていないときに限る。 */
+
+    match /wallets/{uid} {
+
+      // 形がそもそも合っているか（3つの項目だけ。作成日は動かさない）
+      function sameShape() {
+        return request.resource.data.keys().hasOnly(['balance','granted','created'])
+          && request.resource.data.created == resource.data.created;
+      }
+
+      // ① 毎月ぶんの配布（その月に一度だけ、3,000ちょうど）
+      function monthlyGrant() {
+        return sameShape()
+          && !(thisMonth() in resource.data.granted)
+          && request.resource.data.granted == resource.data.granted.concat([thisMonth()])
+          && request.resource.data.balance == resource.data.balance + 3000;
+      }
+
+      // ② 本返しの支払い（減る方向だけ。額の一致は returns の側で縛る）
+      function spend() {
+        return sameShape()
+          && request.resource.data.granted == resource.data.granted
+          && request.resource.data.balance < resource.data.balance
+          && request.resource.data.balance >= 0;
+      }
+
+      allow get: if isMe(uid);
+      allow list: if false;                       // 他人の財布は数えられない
+
+      // はじめて入ったとき：10,000pt を配る
+      allow create: if isMe(uid)
+        && request.resource.data.keys().hasOnly(['balance','granted','created'])
+        && request.resource.data.balance == 10000
+        && request.resource.data.granted == [thisMonth()]
+        && request.resource.data.created == request.time;
+
+      allow update: if isMe(uid) && (monthlyGrant() || spend());
+      allow delete: if false;
+    }
+
+    /* ── 返し ───────────────────────────────
+       returns/{id} : { book, from, name, anon:bool, amount:int,
+                        parts:[{to,name,amount}], toIds:[string], text, at }
+
+       ⚠️ toIds は array-contains で引くためだけの控え。
+          parts と食い違わないよう、ここで突き合わせる。 */
+
+    match /returns/{id} {
+
+      /* parts は1〜4件。それぞれ正の整数で、合計が amount と釣り合うこと。
+         ⚠️ ルールの言語には畳み込みが無いので、件数で場合分けして足す。
+            届け先は最大4件までと決めてある（public/本.json もそれに揃える）。 */
+      function rowsOk(ps, ids) {
+        return (ps.size() < 1 || (ps[0].amount is int && ps[0].amount > 0 && ids[0] == ps[0].to))
+            && (ps.size() < 2 || (ps[1].amount is int && ps[1].amount > 0 && ids[1] == ps[1].to))
+            && (ps.size() < 3 || (ps[2].amount is int && ps[2].amount > 0 && ids[2] == ps[2].to))
+            && (ps.size() < 4 || (ps[3].amount is int && ps[3].amount > 0 && ids[3] == ps[3].to));
+      }
+
+      function partsTotal(ps) {
+        return ps[0].amount
+          + (ps.size() > 1 ? ps[1].amount : 0)
+          + (ps.size() > 2 ? ps[2].amount : 0)
+          + (ps.size() > 3 ? ps[3].amount : 0);
+      }
+
+      function partsOk() {
+        return request.resource.data.parts is list
+          && request.resource.data.parts.size() >= 1
+          && request.resource.data.parts.size() <= 4
+          && request.resource.data.toIds is list
+          && request.resource.data.toIds.size() == request.resource.data.parts.size()
+          && rowsOk(request.resource.data.parts, request.resource.data.toIds)
+          && partsTotal(request.resource.data.parts) == request.resource.data.amount;
+      }
+
+      allow read: if request.auth != null;
+      allow update, delete: if false;             // 記録は消さない・直さない
+
+      allow create: if isMe(request.resource.data.from)
+        && request.resource.data.keys().hasOnly(
+             ['book','from','name','anon','amount','parts','toIds','text','at'])
+        && request.resource.data.book is string
+        && request.resource.data.amount is int
+        && request.resource.data.amount >= 100
+        && request.resource.data.amount <= 50000
+        && request.resource.data.anon is bool
+        && request.resource.data.name is string
+        && request.resource.data.name.size() <= 40
+        && request.resource.data.text is string
+        && request.resource.data.text.size() <= 400
+        && request.resource.data.at == request.time
+        && partsOk()
+        // ⚠️ ここが要。財布がちょうど額のぶん減っていなければ、作れない
+        && getAfter(walletPath(request.auth.uid)).data.balance
+             == get(walletPath(request.auth.uid)).data.balance - request.resource.data.amount;
+    }
+
+    /* ── 残し ───────────────────────────────
+       keeps/{id} : { book, from, name, pledge:int, text, at }
+
+       ⚠️ **お金は1ポイントも動かない。**「復刊したら払う」という意思だけ。
+          だから財布には触れないし、触らせない。 */
+
+    match /keeps/{id} {
+      allow read: if request.auth != null;
+      allow update, delete: if false;
+
+      allow create: if isMe(request.resource.data.from)
+        && request.resource.data.keys().hasOnly(['book','from','name','pledge','text','at'])
+        && request.resource.data.book is string
+        && request.resource.data.pledge is int
+        && request.resource.data.pledge >= 0
+        && request.resource.data.pledge <= 50000
+        && request.resource.data.name is string
+        && request.resource.data.name.size() <= 40
+        && request.resource.data.text is string
+        && request.resource.data.text.size() <= 400
+        && request.resource.data.at == request.time;
+    }
+
+    /* ── 本と主体 ───────────────────────────
+       books/{isbn13}  : 書誌。to[] は entities の id を指す
+
+       ⚠️ **項目名は全部 ASCII。**ルールの言語が日本語の識別子を受け付けないので、
+          いまルールで触っていない books/entities も揃えてある。
+          混在させると、あとでルールを足したときに必ず同じ所で転ぶ。
+            books    : isbn title subtitle authorText publisherText year pubDate
+                       cover to[] status addedBy addedAt public
+            entities : type name key aliases[] claimed claimedBy detail updatedAt
+            requests : from name title author publisher isbn memo at
+       entities/{id}   : 著者・出版社・書店。id は "author:立花隆" のような型込みの正規化キー
+
+       ⚠️ **書き込みはルールで全部閉じてある。**
+          登録は Admin SDK（04_tools/登録する.mjs）から行い、
+          Admin SDK はセキュリティルールを通らないので、これで足りる。
+          利用者からの登録申請は requests に入れ、管理者が承認して books に移す。
+
+       ⚠️ 著者・出版社を1つの entities にまとめてあるのは、
+          返しの宛先を**1つのキースペース**にするため。
+          分けると parts[].to に型が必要になり、結局合成キーで戻すことになる。 */
+
+    /* ⚠️ 本と主体は**ログインしていなくても読める。**書誌は秘密ではないし、
+          入る前に棚が見えたほうが参加してもらいやすい。
+          返し・残し・財布は今までどおり認証が要る。 */
+    match /admins/{uid} {
+      allow get: if isMe(uid);       // 自分が管理者かどうかだけ確かめられる
+      allow list, write: if false;   // 一覧も作成も、画面からはできない
+    }
+
+    match /books/{isbn} {
+      allow read: if true;
+      allow write: if isAdmin();     // 登録・修正・削除は管理者だけ
+    }
+
+    match /entities/{id} {
+      allow read: if true;
+      allow write: if isAdmin();     // 統合・名称の修正は管理者だけ
+    }
+
+    /* ── 登録の申請 ──────────────────────────
+       requests/{id} : 利用者が出した「この本を入れてほしい」
+
+       ⚠️ 利用者の入力は**そのまま受ける。**照合はあとで回す
+          （国会図書館サーチは1回20秒かかるので、待たせない）。
+          管理者が確認して books へ移すまでは、ここに留まる。 */
+
+    match /requests/{id} {
+      allow read: if request.auth != null;
+      allow update, delete: if isAdmin();   // 承認・却下は管理者だけ
+
+      allow create: if isMe(request.resource.data.from)
+        && request.resource.data.keys().hasOnly(
+             ['from','name','title','author','publisher','isbn','memo','at'])
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0 && request.resource.data.title.size() <= 200
+        && request.resource.data.author is string && request.resource.data.author.size() <= 100
+        && request.resource.data.publisher is string && request.resource.data.publisher.size() <= 100
+        && request.resource.data.memo is string && request.resource.data.memo.size() <= 300
+        && request.resource.data.at == request.time;
+    }
+
+    /* ── それ以外は、すべて閉じる ────────────────── */
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

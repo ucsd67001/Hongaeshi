@@ -1,0 +1,16 @@
+# ⚠️ サービスアカウントの鍵は絶対に入れない。
+#    万一この中に置かれても弾けるように、名前で広く落としておく。
+*service-account*.json
+*serviceaccount*.json
+*-firebase-adminsdk-*.json
+鍵*.json
+.env
+.env.*
+
+node_modules/
+firebase-debug.log
+*.log
+.firebase/
+
+# Google Books の APIキー（置き場所は ~/.hongaeshi/ だが念のため）
+*api*.txt

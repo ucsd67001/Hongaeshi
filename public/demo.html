@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>本返し ― 読んだあとに、ありがとうを。</title>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Old+Mincho:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   本返し ― 見た目
+   GEMu_Web の作り（細い罫／角丸の板／英字の小さな札＋大きな見出し／
+   数字のタイル／縁をめぐる灯り）を、そのままライトへ移したもの。
+   夜の図書館 → 朝の書庫。
+   ============================================================ */
+:root{
+  /* 地：ごく薄い紫。白に藤を一滴だけ落とした色 */
+  --地:#f8f6fc;
+  --地の奥:#f0ecf8;
+  --面:#fffdff;
+  --面の上:#faf8fd;
+  --縁:rgba(74,60,104,.13);
+  --縁の濃い:rgba(74,60,104,.28);
+
+  /* 字：地 #f8f6fc に対して 14.8 / 6.1 / 4.7 : 1 */
+  --字:#1d1a24;
+  --字の薄い:#5b5468;
+  --字のごく薄い:#7a7288;
+
+  --灯:#6b4bc4;        /* 藤 */
+  --灯の濃い:#54379f;
+  --灯の淡い:#efe9fb;
+  --水:#2f8f9c;        /* 差しの青緑 */
+  --朱:#c2452d;        /* お金の色 */
+  --朱の淡い:#fbeeeb;
+  --緑:#3f7a56;
+
+  --丸:14px;
+  --丸の小:9px;
+
+  --字体:"Zen Old Mincho","Hiragino Mincho ProN","Yu Mincho","YuMincho","MS PMincho",serif;
+  --影:0 1px 2px rgba(48,34,82,.045), 0 10px 30px rgba(48,34,82,.06);
+  --くぼみ:#f4f1fb;
+}
+
+*{box-sizing:border-box}
+[hidden]{display:none !important}
+html{scroll-behavior:smooth}
+body{
+  margin:0;min-height:100vh;
+  background:var(--地);color:var(--字);
+  font-family:var(--字体);font-size:15px;line-height:1.9;
+  -webkit-font-smoothing:antialiased;
+}
+input,textarea,select,button{font-family:var(--字体)}
+button{cursor:pointer}
+
+/* 朝の書庫の明かり。紫の側だけで作る */
+body::before{
+  content:"";position:fixed;inset:0;z-index:-2;
+  background:
+    radial-gradient(900px 520px at 16% -10%, rgba(107,75,196,.11), transparent 62%),
+    radial-gradient(760px 480px at 90% 2%, rgba(47,143,156,.055), transparent 60%),
+    radial-gradient(1100px 700px at 50% 110%, rgba(129,92,214,.10), transparent 66%),
+    linear-gradient(180deg, var(--地) 0%, var(--地の奥) 100%);
+}
+a{color:var(--灯の濃い);text-decoration:none}
+a:hover{color:var(--字)}
+::selection{background:rgba(107,75,196,.18)}
+
+.枠{width:min(1060px,100% - 40px);margin-inline:auto}
+
+/* ── 上の帯 ───────────────────────────────── */
+.帯{position:sticky;top:0;z-index:20;backdrop-filter:blur(14px);
+  background:rgba(248,246,252,.84);border-bottom:1px solid var(--縁)}
+.帯 .中{display:flex;align-items:center;gap:18px;height:62px}
+.銘{font-size:19px;letter-spacing:.16em;white-space:nowrap;cursor:pointer;font-weight:600}
+.銘 .粒{color:var(--灯);margin-right:9px;font-size:11px;vertical-align:2px}
+.帯 nav{display:flex;gap:5px;margin-left:auto;flex-wrap:wrap}
+.帯 nav button{font-size:12.5px;letter-spacing:.06em;color:var(--字の薄い);
+  padding:6px 14px;border-radius:999px;border:1px solid transparent;background:none}
+.帯 nav button:hover{color:var(--字);background:var(--面の上);border-color:var(--縁)}
+.帯 nav button.いま{color:var(--灯の濃い);background:var(--灯の淡い);border-color:var(--縁の濃い)}
+.デモ札{font-size:10px;letter-spacing:.22em;color:var(--字のごく薄い);
+  border:1px solid var(--縁);border-radius:999px;padding:2px 10px}
+
+/* ── 見出しのかたまり ──────────────────────────── */
+.英字の札{font-size:11px;letter-spacing:.34em;text-transform:uppercase;color:var(--灯);margin:0 0 14px}
+h1.大見出し{font-size:clamp(28px,4.6vw,46px);line-height:1.4;font-weight:700;letter-spacing:.02em;margin:0 0 20px}
+.導き{color:var(--字の薄い);font-size:15px;max-width:60ch;margin:0}
+.幕{padding:58px 0 8px}
+.節{padding:40px 0 0}
+h2.節見出し{font-size:19px;font-weight:700;letter-spacing:.06em;margin:0 0 6px;display:flex;align-items:center;gap:10px}
+h2.節見出し::before{content:"◆";color:var(--灯);font-size:10px}
+.節の添え{color:var(--字のごく薄い);font-size:13px;margin:0 0 20px}
+
+/* ── 板（カード）と、縁をめぐる灯り ───────────────── */
+.板{background:var(--面);border:1px solid var(--縁);border-radius:var(--丸);padding:22px;box-shadow:var(--影)}
+@property --めぐる角度{syntax:"<angle>";initial-value:0deg;inherits:false}
+@keyframes 縁をめぐる{to{--めぐる角度:360deg}}
+.板,.めぐる{position:relative}
+.板::after,.めぐる::after{
+  content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;
+  background:conic-gradient(from var(--めぐる角度),
+    transparent 0deg,transparent 236deg,
+    rgba(107,75,196,.30) 284deg,var(--灯) 322deg,var(--水) 346deg,transparent 360deg);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;
+  mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+  mask-composite:exclude;pointer-events:none;
+  animation:縁をめぐる 7s linear infinite;
+}
+.並び>*:nth-child(2)::after{animation-delay:-2.3s}
+.並び>*:nth-child(3)::after{animation-delay:-4.6s}
+.板.静か::after{display:none}
+.並び{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+
+/* ── 数字のタイル ────────────────────────────── */
+.数字たち{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-top:30px}
+.数字{padding:16px 18px}
+.数字 .名{font-size:11px;letter-spacing:.2em;color:var(--字のごく薄い);text-transform:uppercase}
+.数字 .値{font-size:30px;font-weight:700;line-height:1.25;letter-spacing:.01em;margin-top:2px}
+.数字 .添え{font-size:11.5px;color:var(--字のごく薄い);line-height:1.6}
+
+/* ── ボタン ────────────────────────────────── */
+.釦{background:var(--朱);color:#fff;border:none;border-radius:10px;padding:12px 24px;
+  font-size:14px;font-weight:600;letter-spacing:.08em;transition:.16s;box-shadow:0 4px 14px rgba(194,69,45,.2)}
+.釦:hover{background:#a63823;transform:translateY(-1px)}
+.釦.藤{background:var(--灯);box-shadow:0 4px 14px rgba(107,75,196,.2)}
+.釦.藤:hover{background:var(--灯の濃い)}
+.釦.枠だけ{background:transparent;color:var(--字の薄い);border:1px solid var(--縁の濃い);box-shadow:none}
+.釦.枠だけ:hover{background:var(--面の上);color:var(--字);transform:none}
+.釦.全幅{display:block;width:100%}
+.釦.小{padding:6px 14px;font-size:12px;letter-spacing:.04em}
+.釦:disabled{opacity:.32;cursor:not-allowed;transform:none;box-shadow:none}
+
+.札{display:inline-block;font-size:11px;letter-spacing:.06em;padding:2px 10px;border-radius:999px;
+  border:1px solid var(--縁);background:var(--面の上);color:var(--字の薄い);line-height:1.8}
+.札.注{background:var(--朱の淡い);border-color:rgba(194,69,45,.22);color:var(--朱)}
+.札.済{background:#edf4f0;border-color:rgba(63,122,86,.2);color:var(--緑)}
+.札.藤{background:var(--灯の淡い);border-color:var(--縁の濃い);color:var(--灯の濃い)}
+
+/* ── さがす欄 ───────────────────────────────── */
+.さがす{display:flex;gap:8px;max-width:520px;margin:28px 0 0}
+.さがす input{flex:1;padding:13px 17px;border:1px solid var(--縁の濃い);border-radius:11px;
+  background:var(--面);font-size:14.5px;color:var(--字)}
+.さがす input:focus{outline:none;border-color:var(--灯);box-shadow:0 0 0 3px rgba(107,75,196,.12)}
+
+/* ── 本の札 ────────────────────────────────── */
+.本の列{display:grid;gap:13px;grid-template-columns:repeat(auto-fill,minmax(258px,1fr))}
+.本の札{display:flex;gap:14px;padding:15px;align-items:flex-start;text-align:left;width:100%;
+  background:var(--面);border:1px solid var(--縁);border-radius:var(--丸);transition:.16s;box-shadow:var(--影)}
+.本の札:hover{border-color:var(--縁の濃い);transform:translateY(-2px);box-shadow:0 2px 4px rgba(48,34,82,.055),0 14px 34px rgba(48,34,82,.10)}
+.書影{width:54px;min-width:54px;height:77px;border-radius:2px 4px 4px 2px;position:relative;
+  display:flex;align-items:center;justify-content:center;text-align:center;
+  font-size:9.5px;color:#fff;padding:6px;line-height:1.4;overflow:hidden;
+  box-shadow:1px 2px 5px rgba(48,34,82,.24)}
+.書影::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;
+  background:linear-gradient(90deg,rgba(0,0,0,.28),transparent)}
+.書影.大{width:104px;min-width:104px;height:150px;font-size:13px;padding:12px}
+.本の名{font-size:14.5px;font-weight:600;line-height:1.55}
+.本の素性{font-size:12px;color:var(--字のごく薄い);margin-top:4px;line-height:1.6}
+.本の数{font-size:12px;color:var(--字の薄い);margin-top:8px}
+.本の数 b{color:var(--朱);font-size:14px;font-weight:700}
+
+/* ── 本のページ ───────────────────────────── */
+.本の頭{display:flex;gap:24px;padding:26px;align-items:flex-start;margin-top:26px}
+.受取の行{display:flex;align-items:center;gap:13px;padding:14px 18px;border-bottom:1px solid var(--縁)}
+.受取の行:last-child{border-bottom:none}
+.顔{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-size:14px;background:var(--灯の淡い);color:var(--灯の濃い);flex:none}
+.声{padding:15px 18px;border-bottom:1px solid var(--縁)}
+.声:last-child{border-bottom:none}
+.声 .素性{font-size:11.5px;color:var(--字のごく薄い);margin-bottom:5px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.声 .金{color:var(--朱);font-weight:700;font-size:12.5px}
+.声 p{margin:0;font-size:14px;line-height:1.85}
+
+/* ── 覆い（モーダル） ─────────────────────────── */
+.覆い{position:fixed;inset:0;background:rgba(42,32,66,.34);backdrop-filter:blur(3px);
+  display:flex;align-items:center;justify-content:center;padding:16px;z-index:100}
+.窓{background:var(--面);border-radius:18px;max-width:476px;width:100%;max-height:92vh;overflow:auto;
+  box-shadow:0 30px 80px rgba(42,32,66,.3);border:1px solid var(--縁)}
+.窓の頭{padding:20px 24px 0;display:flex;align-items:center;gap:10px}
+.窓の頭 h3{font-size:17px;flex:1;margin:0;letter-spacing:.06em;font-weight:600}
+.閉じる{background:none;border:none;font-size:20px;color:var(--字のごく薄い);line-height:1;padding:4px 6px}
+.窓の中{padding:16px 24px 24px}
+.段{display:flex;gap:6px;padding:14px 24px 0}
+.段 div{height:3px;flex:1;background:var(--縁);border-radius:2px;transition:.2s}
+.段 div.いま{background:var(--灯)}
+
+.金額たち{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
+.金額たち button{padding:15px 4px;border:1px solid var(--縁);background:var(--面の上);border-radius:11px;
+  font-size:17px;font-weight:600;color:var(--字);letter-spacing:.02em;transition:.14s}
+.金額たち button:hover{border-color:var(--縁の濃い)}
+.金額たち button.いま{border-color:var(--朱);background:var(--朱の淡い);color:var(--朱)}
+.欄{width:100%;padding:11px 14px;border:1px solid var(--縁の濃い);border-radius:10px;
+  font-size:14px;background:var(--面の上);color:var(--字)}
+.欄:focus{outline:none;border-color:var(--灯);box-shadow:0 0 0 3px rgba(107,75,196,.12)}
+textarea.欄{min-height:94px;resize:vertical;line-height:1.85}
+.名札{display:block;font-size:12px;letter-spacing:.08em;color:var(--字の薄い);margin:18px 0 7px;font-weight:600}
+
+.配る{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--縁)}
+.配る:last-of-type{border-bottom:none}
+.配る .名{flex:1;font-size:13px;line-height:1.5}
+.配る input[type=range]{width:100px;accent-color:var(--灯)}
+.配る .率{width:44px;text-align:right;font-variant-numeric:tabular-nums;font-size:13px;font-weight:700}
+
+.内訳{background:var(--くぼみ);border:1px solid var(--縁);border-radius:12px;padding:15px 17px;margin-top:15px;font-size:13px}
+.内訳 .行{display:flex;justify-content:space-between;padding:4px 0;gap:12px}
+.内訳 .行.締め{border-top:1px dashed var(--縁の濃い);margin-top:8px;padding-top:10px;font-weight:700}
+.帯グラフ{display:flex;height:9px;border-radius:5px;overflow:hidden;margin:2px 0 13px;background:var(--縁)}
+
+.断り{background:#fdf7ec;border:1px solid #ecdcba;border-radius:11px;padding:13px 15px;
+  font-size:12.5px;color:#7a5a24;line-height:1.85}
+.断り.藤{background:var(--灯の淡い);border-color:var(--縁の濃い);color:var(--灯の濃い)}
+.終い{text-align:center;padding:16px 0 4px}
+.終い .印{font-size:46px;line-height:1}
+
+/* ── 表 ──────────────────────────────────── */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:11px 16px;border-bottom:1px solid var(--縁)}
+tr:last-child td{border-bottom:none}
+th{font-size:11px;letter-spacing:.14em;color:var(--字のごく薄い);font-weight:600;text-transform:uppercase}
+td.右,th.右{text-align:right;font-variant-numeric:tabular-nums}
+.表の板{overflow:hidden;padding:0}
+
+/* ── しくみ ───────────────────────────────── */
+.流れ{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));margin-top:6px}
+.流れ .板{padding:18px}
+.流れ .番{font-size:11px;letter-spacing:.24em;color:var(--灯)}
+.流れ h4{margin:6px 0 6px;font-size:15px;font-weight:600;letter-spacing:.04em}
+.流れ p{margin:0;font-size:12.5px;color:var(--字の薄い);line-height:1.8}
+
+/* ── 裾 ──────────────────────────────────── */
+.裾{margin:64px 0 34px;padding-top:22px;border-top:1px solid var(--縁);
+  font-size:12px;color:var(--字のごく薄い);display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.裾 button{background:none;border:none;color:var(--字のごく薄い);text-decoration:underline;font-size:12px;padding:0}
+
+@media(max-width:620px){
+  .本の頭{flex-direction:column}
+  .金額たち{grid-template-columns:repeat(2,1fr)}
+}
+@media(prefers-reduced-motion:reduce){
+  .板::after,.めぐる::after{animation:none}
+  *{transition:none !important}
+}
+</style>
+</head>
+<body>
+
+<div class="帯"><div class="枠 中">
+  <div class="銘" onclick="go('home')"><span class="粒">◆</span>本返し</div>
+  <span class="デモ札">DEMO</span>
+  <nav id="nav"></nav>
+</div></div>
+
+<main id="app" class="枠"></main>
+
+<div class="枠"><div class="裾">
+  <span>本返し ― プロトタイプ。書誌・金額はすべてダミーで、決済は発生しません。</span>
+  <button onclick="resetAll()">入力したデータを消す</button>
+</div></div>
+
+<div id="窓"></div>
+
+<script>
+/* ============================================================
+   きまり
+   ============================================================ */
+const 決済率 = 0.05;   // 決済手数料（想定）
+const 運営率 = 0.05;   // 本返しの運営分
+const 既定額 = 100;    // ⚠️ デフォルトは100円
+const 円 = n => "¥" + Math.round(n).toLocaleString("ja-JP");
+
+/* ============================================================
+   もとのデータ（ダミー）
+   ============================================================ */
+const 蔵書 = [
+  { id:"momo", 題:"モモ", 著:"ミヒャエル・エンデ", 訳:"大島かおり",
+    版元:"岩波書店", 年:1976, 色:"#3c4f80", 状態:"流通",
+    受取:[{id:"momo_p",種:"出版社",名:"岩波書店",認証:true},
+          {id:"momo_a",種:"著者・権利者",名:"著作権継承者",認証:false},
+          {id:"momo_s",種:"書店",名:"三本木書店（独立系）",認証:true}],
+    声:[{名:"あさひ",額:1000,文:"中学の図書室で借りて以来、時間に追われるたびに思い出します。今なら払えるので。",日:2},
+        {名:"匿名",額:300,文:"灰色の男たちの話を、社会人になってからもう一度読みました。",日:5},
+        {名:"koto",額:3000,文:"娘に読み聞かせています。この本が今も手に入ることが、本当にありがたい。",日:9},
+        {名:"匿名",額:100,文:"表紙を見ただけで、あの夏の匂いがしました。",日:11}],
+    元数:1284, 元額:428000 },
+
+  { id:"yoru", 題:"夜と霧", 著:"ヴィクトール・E・フランクル", 訳:"池田香代子",
+    版元:"みすず書房", 年:1956, 色:"#454250", 状態:"流通",
+    受取:[{id:"yoru_p",種:"出版社",名:"みすず書房",認証:true},
+          {id:"yoru_t",種:"翻訳者",名:"翻訳者",認証:false}],
+    声:[{名:"匿名",額:2000,文:"入院中に読んで、退院できました。お礼を言う先が、ずっとわからなかった。",日:1},
+        {名:"n.s",額:500,文:"20年ぶりに読み返しました。刷り続けてくれて、ありがとうございます。",日:14}],
+    元数:907, 元額:311000 },
+
+  { id:"fune", 題:"舟を編む", 著:"三浦しをん", 訳:null,
+    版元:"光文社", 年:2011, 色:"#3f7a56", 状態:"流通",
+    受取:[{id:"fune_a",種:"著者・権利者",名:"三浦しをん",認証:true},
+          {id:"fune_p",種:"出版社",名:"光文社",認証:true}],
+    声:[{名:"まつもと",額:1000,文:"辞書編集部に憧れて出版社を受けました。落ちましたが、今も本が好きです。",日:3}],
+    元数:431, 元額:139000 },
+
+  { id:"machi", 題:"街の本屋の四季", 著:"沢田 敬一", 訳:null,
+    版元:"小舟社（解散）", 年:1988, 色:"#8a6a45", 状態:"絶版",
+    受取:[],
+    声:[{名:"匿名",額:0,文:"祖父の店の話みたいでした。古本で買ったので、誰にもお金が渡っていないのが心残りです。",日:4,約:1000},
+        {名:"hiro",額:0,文:"復刊したら5冊買って、知り合いに配ります。",日:8,約:3000},
+        {名:"みどり",額:0,文:"図書館の除籍本で出会いました。子どもに残したい。",日:21,約:500}],
+    元数:0, 元額:0, 元残:782, 元約:612000 },
+
+  { id:"conveni", 題:"コンビニ人間", 著:"村田沙耶香", 訳:null,
+    版元:"文藝春秋", 年:2016, 色:"#a8432c", 状態:"流通",
+    受取:[{id:"con_p",種:"出版社",名:"文藝春秋",認証:true},
+          {id:"con_s",種:"書店",名:"ひるね堂書店（独立系）",認証:true}],
+    声:[{名:"匿名",額:500,文:"働けない時期に、これを読んで少し息ができました。",日:6}],
+    元数:660, 元額:198000 },
+
+  { id:"hoshi", 題:"星の王子さま", 著:"サン＝テグジュペリ", 訳:"内藤濯",
+    版元:"岩波書店", 年:1953, 色:"#8a7330", 状態:"流通",
+    受取:[{id:"ho_p",種:"出版社",名:"岩波書店",認証:true}],
+    声:[{名:"匿名",額:100,文:"子どもの頃はわからなかった話が、40歳でやっとわかりました。",日:7}],
+    元数:1520, 元額:466000 }
+];
+
+/* ============================================================
+   いまの状態（この端末に残る）
+   ============================================================ */
+let 状態 = 読む();
+function 読む(){
+  try{ const r=localStorage.getItem("hongaeshi_v1"); if(r) return JSON.parse(r); }catch(e){}
+  return { 返し:[], 残し:[] };
+}
+function 書く(){ try{ localStorage.setItem("hongaeshi_v1", JSON.stringify(状態)); }catch(e){} }
+function resetAll(){ 状態={返し:[],残し:[]}; 書く(); 描く(); }
+
+const 本 = id => 蔵書.find(b=>b.id===id);
+const 認証済 = b => b.受取.filter(r=>r.認証);
+function 集計(b){
+  const 私 = 状態.返し.filter(t=>t.本===b.id);
+  const 残 = 状態.残し.filter(k=>k.本===b.id);
+  return {
+    人数: b.元数 + b.声.filter(v=>v.額>0).length + 私.length,
+    金額: b.元額 + b.声.reduce((s,v)=>s+v.額,0) + 私.reduce((s,t)=>s+t.額,0),
+    声数: b.声.length + 私.filter(t=>t.文).length + 残.filter(k=>k.文).length,
+    残数: (b.元残||0) + 残.length,
+    約額: (b.元約||0) + b.声.reduce((s,v)=>s+(v.約||0),0) + 残.reduce((s,k)=>s+(k.約||0),0),
+    私
+  };
+}
+const 総額 = () => 蔵書.reduce((s,b)=>s+集計(b).金額,0);
+const 総人 = () => 蔵書.reduce((s,b)=>s+集計(b).人数,0);
+const 総受取 = () => 蔵書.reduce((s,b)=>s+認証済(b).length,0);
+
+/* ============================================================
+   道すじ
+   ============================================================ */
+let 現在 = {頁:"home"};
+function go(頁, 他={}){ 現在={頁,...他}; window.scrollTo(0,0); 描く(); }
+
+function 描く(){
+  document.getElementById("nav").innerHTML =
+    [["home","さがす"],["mine","わたしの本返し"],["dash","受取人の控え"],["about","しくみ"]]
+    .map(([k,l])=>`<button class="${現在.頁===k?'いま':''}" onclick="go('${k}')">${l}</button>`).join("");
+  document.getElementById("app").innerHTML =
+    ({home:頁_さがす, book:頁_本, mine:頁_私, dash:頁_受取人, about:頁_しくみ})[現在.頁]();
+}
+const 逃 = s => (s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+/* ============================================================
+   本の札
+   ============================================================ */
+function 本の札(b){
+  const s = 集計(b);
+  const 下 = b.状態==="絶版"
+    ? `<span class="札 注">絶版</span> <b>${s.残数.toLocaleString()}</b>人が「残したい」`
+    : `<b>${s.人数.toLocaleString()}</b>人の本返し ／ ${円(s.金額)}`;
+  return `<button class="本の札" onclick="go('book',{id:'${b.id}'})">
+    <div class="書影" style="background:linear-gradient(150deg,${b.色},${b.色}cc)">${b.題}</div>
+    <div style="flex:1;min-width:0">
+      <div class="本の名">${b.題}</div>
+      <div class="本の素性">${b.著}${b.訳?" ／ 訳 "+b.訳:""}<br>${b.版元}・${b.年}</div>
+      <div class="本の数">${下}</div>
+    </div></button>`;
+}
+
+/* ============================================================
+   頁：さがす
+   ============================================================ */
+function 頁_さがす(){
+  const q = (現在.q||"").trim();
+  const 一覧 = q ? 蔵書.filter(b=>(b.題+b.著+b.版元).includes(q)) : 蔵書;
+  const 新着 = 蔵書.flatMap(b=>b.声.map(v=>({...v,b})))
+    .concat(状態.返し.filter(t=>t.文).map(t=>({名:"あなた",額:t.額,文:t.文,日:0,b:本(t.本)})))
+    .concat(状態.残し.filter(k=>k.文).map(k=>({名:"あなた",額:0,約:k.約,文:k.文,日:0,b:本(k.本)})))
+    .sort((a,c)=>a.日-c.日).slice(0,5);
+
+  return `
+  <section class="幕">
+    <p class="英字の札">Return to books</p>
+    <h1 class="大見出し">読んだあとに、<br>ありがとうを。</h1>
+    <p class="導き">買うだけでは届かなかった気持ちを、著者・出版社・書店へ。<br>
+      図書館で借りた本も、古本で買った本も、昔もらった本も。<span style="color:var(--朱);font-weight:600">100円から返せます。</span></p>
+    <form class="さがす" onsubmit="event.preventDefault();go('home',{q:this.q.value})">
+      <input name="q" placeholder="書名・著者名・ISBN で探す" value="${逃(q)}">
+      <button class="釦 藤" type="submit">さがす</button>
+    </form>
+    <div class="数字たち">
+      <div class="板 数字"><div class="名">Thanks</div><div class="値">${総人().toLocaleString()}</div><div class="添え">これまでの本返し</div></div>
+      <div class="板 数字"><div class="名">Returned</div><div class="値" style="color:var(--朱)">${円(総額())}</div><div class="添え">本の世界へ届いた額</div></div>
+      <div class="板 数字"><div class="名">Receivers</div><div class="値">${総受取()}</div><div class="添え">認証済の受取人</div></div>
+      <div class="板 数字"><div class="名">Ratio</div><div class="値">90<span style="font-size:17px">%</span></div><div class="添え">受取人へ渡る割合</div></div>
+    </div>
+  </section>
+
+  <section class="節">
+    <h2 class="節見出し">${q?`「${逃(q)}」の結果`:"いま、ありがとうが集まっている本"}</h2>
+    <p class="節の添え">${一覧.length}件</p>
+    <div class="本の列">${一覧.map(本の札).join("") || '<p class="導き">見つかりませんでした。</p>'}</div>
+  </section>
+
+  ${q?"":`
+  <section class="節">
+    <h2 class="節見出し">最近、届いた声</h2>
+    <p class="節の添え">購買データでは取れない、読後の言葉</p>
+    <div class="板 静か" style="padding:0">
+      ${新着.map(v=>`<div class="声">
+        <div class="素性"><b style="color:var(--字の薄い)">${逃(v.名)}</b>
+          <span>→</span>
+          <a style="cursor:pointer" onclick="go('book',{id:'${v.b.id}'})">${v.b.題}</a>
+          ${v.額>0?`<span class="金">${円(v.額)}</span>`:`<span class="札 注">残したい${v.約?" "+円(v.約):""}</span>`}
+          <span>${v.日===0?"たった今":v.日+"日前"}</span></div>
+        <p>${逃(v.文)}</p></div>`).join("")}
+    </div>
+  </section>`}`;
+}
+
+/* ============================================================
+   頁：本
+   ============================================================ */
+function 頁_本(){
+  const b = 本(現在.id), s = 集計(b), 受 = 認証済(b);
+  const 声一覧 = b.声.map(v=>({...v}))
+    .concat(状態.返し.filter(t=>t.本===b.id&&t.文).map(t=>({名:t.匿?"匿名":"あなた",額:t.額,文:t.文,日:0})))
+    .concat(状態.残し.filter(k=>k.本===b.id&&k.文).map(k=>({名:"あなた",額:0,約:k.約,文:k.文,日:0})))
+    .sort((a,c)=>a.日-c.日);
+
+  return `
+  <div class="板 本の頭">
+    <div class="書影 大" style="background:linear-gradient(150deg,${b.色},${b.色}cc)">${b.題}</div>
+    <div style="flex:1;min-width:0">
+      <p class="英字の札" style="margin-bottom:8px">Book</p>
+      <h2 style="font-size:26px;margin:0;font-weight:700;letter-spacing:.03em">${b.題}</h2>
+      <p class="本の素性" style="font-size:13.5px;margin-top:8px">
+        ${b.著}${b.訳?" ／ 訳 "+b.訳:""}<br>${b.版元}・${b.年}年</p>
+      <div style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap">
+        ${b.状態==="絶版"?'<span class="札 注">絶版・品切れ</span>':'<span class="札 済">流通中</span>'}
+        ${受.length?`<span class="札 済">受取人 ${受.length}件 認証済</span>`:'<span class="札 注">受取人 未登録</span>'}
+      </div>
+      <div style="margin-top:20px;display:flex;gap:9px;flex-wrap:wrap">
+        ${受.length
+          ? `<button class="釦" onclick="返し始め('${b.id}')">この本に本返しする</button>
+             <button class="釦 枠だけ" onclick="残し始め('${b.id}')">残したい</button>`
+          : `<button class="釦 藤" onclick="残し始め('${b.id}')">この本を残したい</button>`}
+      </div>
+      ${受.length?"":`<div class="断り" style="margin-top:16px">
+        この本には、まだ受取人が登録されていません。<b>いまはお金を受け取りません。</b>
+        気持ちと「復刊したら払いたい額」だけを記録し、権利者がこのページを引き継いだ時点でお知らせします。</div>`}
+    </div>
+  </div>
+
+  <div class="数字たち" style="margin-top:14px">
+    <div class="板 数字 静か"><div class="名">Thanks</div><div class="値">${s.人数.toLocaleString()}</div><div class="添え">本返しした人</div></div>
+    <div class="板 数字 静か"><div class="名">Returned</div><div class="値" style="color:var(--朱)">${円(s.金額)}</div><div class="添え">この本から返った額</div></div>
+    <div class="板 数字 静か"><div class="名">Voices</div><div class="値">${s.声数.toLocaleString()}</div><div class="添え">読後のメッセージ</div></div>
+    <div class="板 数字 静か"><div class="名">Keep</div><div class="値">${s.残数.toLocaleString()}</div><div class="添え">${s.約額?`残したい（${円(s.約額)}の意思）`:"残したい"}</div></div>
+  </div>
+
+  <section class="節">
+    <h2 class="節見出し">この本を支える人たち</h2>
+    <p class="節の添え">ありがとうの届け先。応援する対象は「本」、受け取るのは「人・会社・場所」</p>
+    <div class="板 静か" style="padding:0">
+      ${b.受取.length ? b.受取.map(r=>`
+        <div class="受取の行">
+          <div class="顔">${r.種[0]}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:14px;font-weight:600">${r.名}</div>
+            <div style="font-size:11.5px;color:var(--字のごく薄い)">${r.種}</div>
+          </div>
+          ${r.認証 ? '<span class="札 済">認証済・受取可</span>'
+                  : '<button class="釦 枠だけ 小" onclick="引き継ぎ()">このページを引き継ぐ</button>'}
+        </div>`).join("")
+      : `<div class="受取の行"><div style="flex:1;font-size:13px;color:var(--字のごく薄い)">
+           登録されている受取人は、まだいません。</div>
+           <button class="釦 枠だけ 小" onclick="引き継ぎ()">関係者として引き継ぐ</button></div>`}
+    </div>
+  </section>
+
+  <section class="節">
+    <h2 class="節見出し">読者からの声</h2>
+    <p class="節の添え">${声一覧.length}件</p>
+    <div class="板 静か" style="padding:0">
+      ${声一覧.length ? 声一覧.map(v=>`<div class="声">
+          <div class="素性"><b style="color:var(--字の薄い)">${逃(v.名)}</b>
+            ${v.額>0?`<span class="金">${円(v.額)}</span>`:""}
+            ${v.約?`<span class="札 注">復刊したら ${円(v.約)}</span>`:""}
+            <span>${v.日===0?"たった今":v.日+"日前"}</span></div>
+          <p>${逃(v.文)}</p></div>`).join("")
+      : '<div class="声" style="color:var(--字のごく薄い);font-size:13px">まだ声はありません。</div>'}
+    </div>
+  </section>`;
+}
+
+/* ============================================================
+   覆い：本返しする
+   ============================================================ */
+let F = {};
+function 返し始め(id){
+  const b = 本(id), 受 = 認証済(b);
+  F = {本:id, 段:1, 額:既定額, 自由:"", 文:"", 匿:false,
+       配分:Object.fromEntries(受.map((r,i,a)=>[r.id, Math.floor(100/a.length)+(i===0?100%a.length:0)]))};
+  返し描く();
+}
+function 覆い閉じ(){ document.getElementById("窓").innerHTML=""; }
+function 額指定(v){ F.額=v; F.自由=""; 返し描く(); }
+function 額自由(v){ F.自由=v; const n=parseInt(v.replace(/[^0-9]/g,""),10); F.額=isNaN(n)?0:n; 返し描く(true); }
+function 配分変更(id,v){ F.配分[id]=+v; 返し描く(); }
+function 均等(){ const k=Object.keys(F.配分); k.forEach((x,i)=>F.配分[x]=Math.floor(100/k.length)+(i===0?100%k.length:0)); 返し描く(); }
+const 配分計 = () => Object.values(F.配分).reduce((a,b)=>a+b,0);
+function 段へ(n){ F.段=n; 返し描く(); }
+
+function 返し描く(自由に){
+  const b = 本(F.本), 受 = 認証済(b);
+  const 額 = F.額||0;
+  const 決 = Math.round(額*決済率), 運 = Math.round(額*運営率), 本へ = 額-決-運;
+  let 中 = "";
+
+  if(F.段===1){
+    中 = `
+      <p style="margin:0 0 2px;font-size:13px;color:var(--字の薄い)">「${b.題}」に、いくら返しますか。</p>
+      <div class="金額たち">
+        ${[100,300,500,1000,3000,5000].map(v=>
+          `<button class="${!F.自由&&F.額===v?'いま':''}" onclick="額指定(${v})">¥${v.toLocaleString()}</button>`).join("")}
+      </div>
+      <input class="欄" id="自由額" inputmode="numeric" placeholder="自由な額（¥100〜¥50,000）"
+        value="${逃(F.自由)}" oninput="額自由(this.value)">
+      <div class="内訳">
+        <div class="帯グラフ">
+          <div style="width:${額?本へ/額*100:0}%;background:var(--朱)"></div>
+          <div style="width:${額?決/額*100:0}%;background:#c9c0d4"></div>
+          <div style="width:${額?運/額*100:0}%;background:var(--灯)"></div>
+        </div>
+        <div class="行"><span>本の世界へ届く分</span><b style="color:var(--朱)">${円(本へ)}</b></div>
+        <div class="行"><span style="color:var(--字のごく薄い)">決済手数料（実費ぶん・約5%）</span><span style="color:var(--字のごく薄い)">${円(決)}</span></div>
+        <div class="行"><span style="color:var(--字のごく薄い)">本返しの運営（5%）</span><span style="color:var(--字のごく薄い)">${円(運)}</span></div>
+        <div class="行 締め"><span>お支払い</span><span>${円(額)}</span></div>
+      </div>
+      ${額>0&&額<300?`<p style="font-size:11.5px;color:var(--字のごく薄い);margin:9px 0 0;line-height:1.7">
+        ※ 少額は決済の固定費が重くなるため、実装では数件をまとめて決済する方式を想定しています。</p>`:""}
+      <button class="釦 全幅" style="margin-top:17px" ${額<100||額>50000?"disabled":""} onclick="段へ(2)">届け先をえらぶ</button>`;
+  }
+
+  if(F.段===2){
+    const 計 = 配分計();
+    中 = `
+      <p style="margin:0 0 8px;font-size:13px;color:var(--字の薄い)">${円(本へ)} を、誰に届けますか。</p>
+      ${受.map(r=>`<div class="配る">
+        <div class="名"><b>${r.名}</b><br><span style="font-size:11.5px;color:var(--字のごく薄い)">${r.種}</span></div>
+        <input type="range" min="0" max="100" step="5" value="${F.配分[r.id]}" oninput="配分変更('${r.id}',this.value)">
+        <div class="率">${F.配分[r.id]}%</div>
+        <div class="率" style="width:58px;color:var(--朱)">${円(本へ*F.配分[r.id]/100)}</div>
+      </div>`).join("")}
+      <div style="display:flex;align-items:center;gap:11px;margin-top:13px">
+        <button class="釦 枠だけ 小" onclick="均等()">均等にする</button>
+        <span style="font-size:12.5px;${計===100?'color:var(--字のごく薄い)':'color:var(--朱);font-weight:700'}">
+          合計 ${計}%${計===100?"":" ― 100%にしてください"}</span>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:20px">
+        <button class="釦 枠だけ" onclick="段へ(1)">戻る</button>
+        <button class="釦" style="flex:1" ${計===100?"":"disabled"} onclick="段へ(3)">ことばを添える</button>
+      </div>`;
+  }
+
+  if(F.段===3){
+    中 = `
+      <p style="margin:0 0 2px;font-size:13px;color:var(--字の薄い)">この本に伝えたいことを。（任意・本のページに公開されます）</p>
+      <textarea class="欄" style="margin-top:9px" placeholder="例）高校生の頃に読んで、進路を決めました。"
+        oninput="F.文=this.value">${逃(F.文)}</textarea>
+      <label class="名札" style="display:flex;align-items:center;gap:9px;font-weight:400;margin-top:12px">
+        <input type="checkbox" ${F.匿?"checked":""} onchange="F.匿=this.checked"> 匿名で届ける
+      </label>
+      <div class="内訳">
+        <div class="行"><span>お支払い</span><b>${円(額)}</b></div>
+        ${受.filter(r=>F.配分[r.id]>0).map(r=>
+          `<div class="行"><span style="color:var(--字のごく薄い)">${r.名}</span><span>${円(本へ*F.配分[r.id]/100)}</span></div>`).join("")}
+        <div class="行"><span style="color:var(--字のごく薄い)">決済＋運営</span><span style="color:var(--字のごく薄い)">${円(決+運)}</span></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:17px">
+        <button class="釦 枠だけ" onclick="段へ(2)">戻る</button>
+        <button class="釦" style="flex:1" onclick="返し確定()">本返しする</button>
+      </div>
+      <p style="font-size:11.5px;color:var(--字のごく薄い);text-align:center;margin:11px 0 0">
+        デモのため、実際の決済は行われません</p>`;
+  }
+
+  if(F.段===4){
+    中 = `<div class="終い">
+      <div class="印">🕊</div>
+      <h3 style="font-size:20px;margin:10px 0 6px;font-weight:700;letter-spacing:.06em">本返し、届きました</h3>
+      <p style="font-size:13px;color:var(--字の薄い);margin:0">
+        『${b.題}』へ ${円(額)}<br><span style="color:var(--朱);font-weight:600">${円(本へ)}</span> が本の世界へ渡ります</p>
+      <button class="釦 全幅" style="margin-top:20px" onclick="覆い閉じ();描く()">本のページへ戻る</button>
+      <button class="釦 枠だけ 全幅" style="margin-top:8px" onclick="覆い閉じ();go('dash')">受取人の控えを見る</button>
+    </div>`;
+  }
+
+  document.getElementById("窓").innerHTML = `
+  <div class="覆い" onclick="if(event.target===this)覆い閉じ()">
+    <div class="窓 めぐる">
+      <div class="窓の頭"><h3>${F.段===4?"":"この本に本返しする"}</h3>
+        <button class="閉じる" onclick="覆い閉じ()">×</button></div>
+      ${F.段<4?`<div class="段">${[1,2,3].map(i=>`<div class="${F.段>=i?'いま':''}"></div>`).join("")}</div>`:""}
+      <div class="窓の中">${中}</div>
+    </div></div>`;
+
+  if(自由に){ const t=document.getElementById("自由額");
+    if(t&&F.段===1){t.focus();t.setSelectionRange(t.value.length,t.value.length);} }
+}
+
+function 返し確定(){
+  状態.返し.push({本:F.本, 額:F.額, 文:F.文, 配分:{...F.配分}, 匿:F.匿, 時:Date.now()});
+  書く(); 段へ(4);
+}
+
+/* ============================================================
+   覆い：残したい（お金は動かない）
+   ============================================================ */
+let K = {};
+function 残し始め(id){ K={本:id, 約:1000, 文:"", 済:false}; 残し描く(); }
+function 残し描く(){
+  const b = 本(K.本);
+  const 中 = K.済 ? `<div class="終い">
+      <div class="印">📚</div>
+      <h3 style="font-size:20px;margin:10px 0 6px;font-weight:700;letter-spacing:.06em">意思を記録しました</h3>
+      <p style="font-size:13px;color:var(--字の薄い);margin:0">
+        権利者がこのページを引き継いだら、お知らせします。</p>
+      <button class="釦 全幅" style="margin-top:20px" onclick="覆い閉じ();描く()">閉じる</button>
+    </div>` : `
+    <p style="margin:0 0 4px;font-size:13px;color:var(--字の薄い)">
+      『${b.題}』を残したい気持ちを記録します。<b style="color:var(--灯の濃い)">いまは課金されません。</b></p>
+    <label class="名札">もし復刊・電子化されたら、いくら払ってもいいですか</label>
+    <div class="金額たち">
+      ${[0,500,1000,2000,3000,5000].map(v=>
+        `<button class="${K.約===v?'いま':''}" onclick="K.約=${v};残し描く()">${v===0?"額なし":"¥"+v.toLocaleString()}</button>`).join("")}
+    </div>
+    <label class="名札">この本への思い（任意・公開されます）</label>
+    <textarea class="欄" placeholder="例）古本で出会いました。子どもにも読ませたい。"
+      oninput="K.文=this.value">${逃(K.文)}</textarea>
+    <div class="断り 藤" style="margin-top:15px">
+      これは支払いの約束ではなく、<b>需要のしるし</b>です。集まった額は「これだけの読者が待っている」として、
+      出版社・権利者に示されます。</div>
+    <button class="釦 藤 全幅" style="margin-top:17px" onclick="残し確定()">残したい気持ちを記録する</button>`;
+
+  document.getElementById("窓").innerHTML = `
+  <div class="覆い" onclick="if(event.target===this)覆い閉じ()">
+    <div class="窓 めぐる">
+      <div class="窓の頭"><h3>${K.済?"":"この本を残したい"}</h3>
+        <button class="閉じる" onclick="覆い閉じ()">×</button></div>
+      <div class="窓の中">${中}</div>
+    </div></div>`;
+}
+function 残し確定(){
+  状態.残し.push({本:K.本, 約:K.約, 文:K.文, 時:Date.now()});
+  書く(); K.済=true; 残し描く();
+}
+
+function 引き継ぎ(){
+  document.getElementById("窓").innerHTML = `
+  <div class="覆い" onclick="if(event.target===this)覆い閉じ()">
+    <div class="窓 めぐる"><div class="窓の頭"><h3>このページを引き継ぐ</h3>
+      <button class="閉じる" onclick="覆い閉じ()">×</button></div>
+    <div class="窓の中">
+      <p style="margin:0;font-size:13.5px">著者・権利者・出版社・書店として、このページの受取人になれます。</p>
+      <ol style="padding-left:20px;font-size:13px;color:var(--字の薄い);line-height:2.1">
+        <li>本人確認（身分証／法人登記）</li>
+        <li>その本との関係の確認（奥付・契約書・屋号など）</li>
+        <li>振込口座の登録（Stripe Connect）</li>
+      </ol>
+      <div class="断り">初期は審査を手で回す想定です。1日数件なら、人の目で十分さばけます。</div>
+      <button class="釦 枠だけ 全幅" style="margin-top:16px" onclick="覆い閉じ()">閉じる</button>
+    </div></div></div>`;
+}
+
+/* ============================================================
+   頁：わたしの本返し
+   ============================================================ */
+function 頁_私(){
+  const 合計 = 状態.返し.reduce((s,t)=>s+t.額,0);
+  const 純 = Math.round(合計*(1-決済率-運営率));
+  const 行 = 状態.返し.map(t=>({...t,種:"返し"}))
+    .concat(状態.残し.map(k=>({...k,種:"残し",額:0}))).sort((a,b)=>b.時-a.時);
+
+  return `
+  <section class="幕" style="padding-bottom:0">
+    <p class="英字の札">My returns</p>
+    <h1 class="大見出し" style="font-size:clamp(24px,3.4vw,34px)">わたしの本返し</h1>
+    <p class="導き">あなたが本の世界へ返したもの。</p>
+    <div class="数字たち">
+      <div class="板 数字"><div class="名">Count</div><div class="値">${状態.返し.length}</div><div class="添え">返した回数</div></div>
+      <div class="板 数字"><div class="名">Paid</div><div class="値" style="color:var(--朱)">${円(合計)}</div><div class="添え">支払った額</div></div>
+      <div class="板 数字"><div class="名">Delivered</div><div class="値">${円(純)}</div><div class="添え">本の世界へ届いた額</div></div>
+      <div class="板 数字"><div class="名">Keep</div><div class="値">${状態.残し.length}</div><div class="添え">残したい本</div></div>
+    </div>
+  </section>
+
+  <section class="節">
+    <h2 class="節見出し">記録</h2>
+    <p class="節の添え">この端末にだけ残ります</p>
+    <div class="板 静か 表の板"><table>
+      <tr><th>本</th><th>種類</th><th class="右">額</th><th>ことば</th></tr>
+      ${行.length ? 行.map(r=>{const b=本(r.本);return `<tr>
+        <td><a style="cursor:pointer" onclick="go('book',{id:'${b.id}'})">${b.題}</a></td>
+        <td>${r.種==="返し"?'<span class="札 済">本返し</span>':'<span class="札 注">残したい</span>'}</td>
+        <td class="右">${r.種==="返し"?円(r.額):(r.約?円(r.約)+"の意思":"―")}</td>
+        <td style="font-size:12.5px;color:var(--字の薄い)">${逃(r.文)||"―"}</td></tr>`}).join("")
+      : '<tr><td colspan="4" style="color:var(--字のごく薄い);font-size:13px">まだ記録がありません。本をさがして、返してみてください。</td></tr>'}
+    </table></div>
+  </section>`;
+}
+
+/* ============================================================
+   頁：受取人の控え
+   ============================================================ */
+function 頁_受取人(){
+  const 誰 = "岩波書店";
+  const 入金 = [];
+  蔵書.forEach(b=>{
+    const r = b.受取.find(x=>x.名===誰 && x.認証);
+    if(!r) return;
+    const 割 = 認証済(b).length;
+    b.声.forEach(v=>{ if(v.額>0) 入金.push({b,名:v.名,額:Math.round(v.額*.9/割),文:v.文,日:v.日}); });
+    状態.返し.filter(t=>t.本===b.id).forEach(t=>{
+      const p = (t.配分&&t.配分[r.id])||0;
+      if(p>0) 入金.push({b,名:t.匿?"匿名":"読者",額:Math.round(t.額*.9*p/100),文:t.文,日:0});
+    });
+  });
+  const 合計 = 入金.reduce((s,i)=>s+i.額,0);
+  const 声あり = 入金.filter(i=>i.文);
+
+  return `
+  <section class="幕" style="padding-bottom:0">
+    <p class="英字の札">Receiver</p>
+    <h1 class="大見出し" style="font-size:clamp(24px,3.4vw,34px)">受取人の控え</h1>
+    <p class="導き">${誰}（認証済）として見ています。<span class="札 藤">デモ用の切り替え</span></p>
+    <div class="数字たち">
+      <div class="板 数字"><div class="名">This month</div><div class="値" style="color:var(--朱)">${円(合計)}</div><div class="添え">受取予定額</div></div>
+      <div class="板 数字"><div class="名">Thanks</div><div class="値">${入金.length}</div><div class="添え">届いた本返し</div></div>
+      <div class="板 数字"><div class="名">Voices</div><div class="値">${声あり.length}</div><div class="添え">読者の声</div></div>
+    </div>
+  </section>
+
+  <section class="節">
+    <h2 class="節見出し">明細</h2>
+    <p class="節の添え">支払額の90%が、配分に応じて渡ります</p>
+    <div class="板 静か 表の板"><table>
+      <tr><th>本</th><th>読者</th><th class="右">受取額</th><th>いつ</th></tr>
+      ${入金.length ? 入金.map(i=>`<tr><td>${i.b.題}</td><td>${逃(i.名)}</td>
+        <td class="右">${円(i.額)}</td>
+        <td style="color:var(--字のごく薄い);font-size:12.5px">${i.日===0?"たった今":i.日+"日前"}</td></tr>`).join("")
+      : '<tr><td colspan="4" style="color:var(--字のごく薄い);font-size:13px">まだ受取はありません。</td></tr>'}
+    </table></div>
+  </section>
+
+  <section class="節">
+    <h2 class="節見出し">読者の声</h2>
+    <p class="節の添え">購買データでは決して取れない、読後の感情</p>
+    <div class="板 静か" style="padding:0">
+      ${声あり.length ? 声あり.map(i=>`<div class="声">
+        <div class="素性"><b style="color:var(--字の薄い)">${i.b.題}</b>
+          <span class="金">${円(i.額)}</span>
+          <span>${i.日===0?"たった今":i.日+"日前"}</span></div>
+        <p>${逃(i.文)}</p></div>`).join("")
+      : '<div class="声" style="color:var(--字のごく薄い);font-size:13px">まだありません。</div>'}
+    </div>
+    <div class="断り 藤" style="margin-top:16px">
+      <b>この画面が、本返しのいちばんの資産です。</b>
+      「1,000人が復刊希望を押した」より、「1,000人が合計72万円出してでも残したいと言っている」のほうが、
+      出版社にとって意思決定できるしるしになります。</div>
+  </section>`;
+}
+
+/* ============================================================
+   頁：しくみ
+   ============================================================ */
+function 頁_しくみ(){
+  return `
+  <section class="幕" style="padding-bottom:0">
+    <p class="英字の札">How it works</p>
+    <h1 class="大見出し" style="font-size:clamp(24px,3.6vw,38px)">お金の流れと、<br>守っていること。</h1>
+    <p class="導き">本返しは、本を買う場所ではありません。<br>
+      読み終わったあとに、その本を支えた人へ気持ちを返すための場所です。</p>
+  </section>
+
+  <section class="節">
+    <h2 class="節見出し">100円を返すと、どうなるか</h2>
+    <p class="節の添え">送る前に、必ずこの内訳を見せます</p>
+    <div class="板 静か" style="max-width:460px">
+      <div class="帯グラフ" style="height:13px">
+        <div style="width:90%;background:var(--朱)"></div>
+        <div style="width:5%;background:#c9c0d4"></div>
+        <div style="width:5%;background:var(--灯)"></div>
+      </div>
+      <div style="font-size:13.5px">
+        <div class="内訳" style="margin-top:6px;background:transparent;border:none;padding:0">
+          <div class="行"><span>本の世界へ</span><b style="color:var(--朱)">¥90</b></div>
+          <div class="行"><span style="color:var(--字のごく薄い)">決済手数料（実費ぶん）</span><span style="color:var(--字のごく薄い)">¥5</span></div>
+          <div class="行"><span style="color:var(--字のごく薄い)">本返しの運営</span><span style="color:var(--字のごく薄い)">¥5</span></div>
+          <div class="行 締め"><span>お支払い</span><span>¥100</span></div>
+        </div>
+      </div>
+    </div>
+    <p class="導き" style="margin-top:14px;font-size:13px">
+      他のサービスの手数料は、CAMPFIREが12%＋決済5%、OFUSEが単発支援16%（2026年10月〜）。
+      本返しは合計10%を上限とし、<b>受取人に90%</b>を渡します。</p>
+  </section>
+
+  <section class="節">
+    <h2 class="節見出し">3つの行い</h2>
+    <p class="節の添え">本返しでできることは、これだけです</p>
+    <div class="流れ">
+      <div class="板"><div class="番">01</div><h4>ありがとう</h4>
+        <p>いま読める本への感謝。著者・出版社・書店へ、100円から返せます。</p></div>
+      <div class="板"><div class="番">02</div><h4>応援する</h4>
+        <p>本ではなく、人・出版社・書店そのものへ。次の一冊が出るように。</p></div>
+      <div class="板"><div class="番">03</div><h4>残したい</h4>
+        <p>絶版・希少本へ。お金は動かさず、「復刊したら払う額」を意思として貯めます。</p></div>
+    </div>
+  </section>
+
+  <section class="節">
+    <h2 class="節見出し">受取人がいない本のこと</h2>
+    <p class="節の添え">ここが、本返しでいちばん大事な設計です</p>
+    <div class="板 静か">
+      <p style="margin:0 0 12px;font-size:14px">
+        絶版本ほど、読者の思いは濃い。けれど出版社が解散していたり、権利者が分からないことがあります。</p>
+      <p style="margin:0 0 12px;font-size:14px">
+        本返しは、そういう本で<b>1円も預かりません。</b>受け取る人がいないお金を持つことは、
+        法律上も、気持ちの上でも、健全ではないからです。</p>
+      <p style="margin:0;font-size:14px">
+        代わりに、ことばと「復刊したら払える額」を貯めます。権利者があとからページを引き継いだとき、
+        そこには<b>すでに読者が待っている</b>という事実が残っています。</p>
+    </div>
+  </section>
+
+  <section class="節">
+    <h2 class="節見出し">受取人になる</h2>
+    <p class="節の添え">著者・権利者・出版社・独立系書店・古書店</p>
+    <div class="流れ">
+      <div class="板"><div class="番">01</div><h4>本人確認</h4><p>身分証、または法人登記。</p></div>
+      <div class="板"><div class="番">02</div><h4>関係の確認</h4><p>奥付・契約書・屋号など、その本との関係を示すもの。</p></div>
+      <div class="板"><div class="番">03</div><h4>口座の登録</h4><p>Stripe Connect で直接お受け取りいただきます。</p></div>
+    </div>
+    <div class="断り" style="margin-top:16px">
+      本返しは資金を預からず、Stripe Connect を通じて受取人へ直接渡す設計を前提としています
+      （資金決済法上の論点があるため、ローンチ前に専門家と確認します）。図書館への支援は第二段階です。</div>
+  </section>`;
+}
+
+描く();
+</script>
+</body>
+</html>
