@@ -83,7 +83,7 @@ function 帯を描く(){
     <button class="わたし" onclick="設定をひらく()" title="設定">
       ${しるし(土台.私の印())}
       <span class="名">${逃(土台.私の名())}</span>
-      <span class="矢">▾</span>
+      <span class="下向き">▾</span>
     </button>`
   : `<button class="釦 小" onclick="ログイン()">Googleで入る</button>`;
 }
