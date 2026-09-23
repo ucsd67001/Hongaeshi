@@ -257,7 +257,11 @@ export async function 本返しする({ 本id, 額, 内訳, 文, 匿 }){
   束.set(doc(collection(db,"returns")), {
     book: 本id,
     from: 私.uid,
-    name: (私.displayName || "読者").slice(0,40),
+    /* ⚠️⚠️ **匿名なら、名前を保存しない。**
+       前は匿名でも名前を入れて、画面で隠しているだけだった。
+       記録は誰でも読めるので、それでは隠したことにならない。
+       消せない記録に名前を残さないこと。 */
+    name: 匿 ? "" : (私.displayName || "読者").slice(0,40),
     anon: !!匿,
     amount: 額,
     parts,

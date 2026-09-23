@@ -114,6 +114,11 @@ service cloud.firestore {
 
     match /returns/{id} {
 
+      /* ⚠️ **誰でも読める。**番付と読者の声を、入っていない人にも見せるため。
+            中身は本のページで元から公開しているものと同じ。
+            **匿名のときは name を保存していない**（共通.js の 本返しする）ので、
+            記録から名前は取れない。残るのは opaque な uid だけ。 */
+
       /* parts は1〜4件。それぞれ正の整数で、合計が amount と釣り合うこと。
          ⚠️ ルールの言語には畳み込みが無いので、件数で場合分けして足す。
             届け先は最大4件までと決めてある（public/本.json もそれに揃える）。 */
@@ -141,7 +146,7 @@ service cloud.firestore {
           && partsTotal(request.resource.data.parts) == request.resource.data.amount;
       }
 
-      allow read: if request.auth != null;
+      allow read: if true;
       allow update, delete: if false;             // 記録は消さない・直さない
 
       allow create: if isMe(request.resource.data.from)
@@ -170,7 +175,7 @@ service cloud.firestore {
           だから財布には触れないし、触らせない。 */
 
     match /keeps/{id} {
-      allow read: if request.auth != null;
+      allow read: if true;                        // ⚠️ returns と同じ理由
       allow update, delete: if false;
 
       allow create: if isMe(request.resource.data.from)

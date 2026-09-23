@@ -351,7 +351,7 @@ async function 頁_主体(){
 
   const 入ってる = !!土台.私;
   const 本ら = 土台.蔵書.filter(b=>b.受取.some(r=>r.id === 現在.id));
-  const { 明細, 合計 } = 入ってる ? await 受取人の受取(現在.id) : { 明細:[], 合計:0 };
+  const { 明細, 合計 } = await 受取人の受取(現在.id);
   const 声あり = 明細.filter(x=>x.文);
 
   return `
@@ -363,22 +363,19 @@ async function 頁_主体(){
     ${e.認証 ? "" : `<div class="断り" style="margin-top:20px;max-width:58ch">
       このページは、まだ本人・関係者に引き継がれていません。
       届いた本返しと読者の声は、引き継がれた時点でお渡しします。</div>`}
-    ${入ってる ? `<div class="数字たち">
+    <div class="数字たち">
       ${数字("Received", 合計.toLocaleString(), "受け取った分（支払額の90%・pt）", true)}
       ${数字("Thanks", 明細.length, "届いた本返し")}
       ${数字("Books", 本ら.length, "この相手の本")}
-    </div>` : ""}
+    </div>
   </section>
 
   ${流れる列("この相手の本", `${本ら.length}冊`, 本ら)}
 
   <section class="節">
-    ${節の頭("読者からの声", 入ってる ? 声あり.length + "件" : "")}
+    ${節の頭("読者からの声", 声あり.length + "件")}
     <div class="声の列">
-      ${!入ってる
-        ? `<p class="節の注" style="padding:20px 0">読者のことばは、入ってから読めます。
-             <button class="釦 枠だけ 小" style="margin-left:10px" onclick="ログイン()">Googleで入る</button></p>`
-        : 声あり.length ? 声あり.map(i=>`<div class="声">
+      ${声あり.length ? 声あり.map(i=>`<div class="声">
             <div class="素性"><b>『${逃(本を引く(i.本)?.題 || i.本)}』</b>
               <span class="金">${pt(i.額)}</span><span>${いつ(i.時)}</span></div>
             <p>${逃(i.文)}</p></div>`).join("")
@@ -391,16 +388,18 @@ async function 頁_主体(){
    頁：さがす
    ============================================================ */
 async function 頁_さがす(){
-  /* ⚠️ **未ログインでも棚は見せる。**本のデータは公開してある。
-        認証が要るのは returns/keeps を読む集計と声だけなので、そこだけ伏せる。
+  /* ⚠️ **未ログインでも、ほぼ全部見せる。**本・主体・返し・残しはすべて公開読み取り。
+        入っている人にしか出さないのは「あなたの残高」と、本返しのボタンだけ。
         リンクを共有されたときに入口しか見えないのは、参加してもらう上で損。 */
   const 入ってる = !!土台.私;
   const q = (現在.q||"").trim();
-  const [数, 全体, 新着] = 入ってる
-    ? await Promise.all([まとめて数える(), 全体の集計(), 最近の声(5)])
-    : [null, null, []];
-  const 表 = 数?.本 || {};
-  const 順 = 数 ? 番付(数, 3) : null;
+  /* ⚠️ returns / keeps は公開読み取りにしたので、**入っていなくても数えられる。**
+        入っている人にだけ出すのは「あなたの残高」だけ。 */
+  const [数, 全体, 新着] = await Promise.all([
+    まとめて数える(), 全体の集計(), 最近の声(5)
+  ]);
+  const 表 = 数.本;
+  const 順 = 番付(数, 3);
   const 一覧 = q ? 土台.蔵書.filter(b=>(b.題+b.著+b.版元).includes(q)) : 土台.蔵書;
 
   return `
@@ -418,12 +417,14 @@ async function 頁_さがす(){
     <p class="節の注" style="margin-top:14px">
       ${土台.蔵書.length}冊あります。<a onclick="go('books')">一覧を見る</a>。
       ここに無い本は、${申請リンク()}。</p>
-    ${入ってる ? `<div class="数字たち">
+    <div class="数字たち">
       ${数字("Thanks", 全体.人数.toLocaleString(), "これまでの本返し")}
       ${数字("Returned", pt(全体.金額).replace("pt",""), "本の世界へ届いた分（pt）", true)}
       ${数字("Keep", 全体.残数.toLocaleString(), "残したい")}
-      ${数字("Wallet", (土台.財布?.残高??0).toLocaleString(), "あなたの残高（pt）")}
-    </div>` : 入るとこうなる()}
+      ${入ってる
+        ? 数字("Wallet", (土台.財布?.残高??0).toLocaleString(), "あなたの残高（pt）")
+        : 数字("Books", 土台.蔵書.length, "棚にある本")}
+    </div>
   </section>
 
   ${q ? `
@@ -443,9 +444,10 @@ async function 頁_さがす(){
         .slice(0,30), 表, "登録")}
   <section class="節" style="padding-top:44px">
     <a class="釦 枠だけ" onclick="go('books')">本の一覧をぜんぶ見る（${土台.蔵書.length}冊）</a>
-  </section>`}
+  </section>
+  ${入ってる ? "" : 入るとこうなる()}`}
 
-  ${q||!入ってる?"":`
+  ${q?"":`
   <section class="節">
     ${節の頭("最近、届いた声", "購買データでは取れない、読後の言葉")}
     <div class="声の列">
@@ -575,10 +577,8 @@ async function 頁_本(){
   if(!b) return `<div class="節"><div class="断り">その本は見つかりませんでした。
     <button class="釦 枠だけ 小" style="margin-left:10px" onclick="go('home')">さがすへ</button></div></div>`;
 
-  /* ⚠️ 集計と声は returns/keeps を読むので認証が要る。入っていなければ飛ばす。 */
-  const [s, 声たち] = 入ってる
-    ? await Promise.all([本の集計(b.id), 本の声(b.id)])
-    : [null, []];
+  /* ⚠️ returns / keeps は公開読み取り。**入っていなくても集計と声が出る。** */
+  const [s, 声たち] = await Promise.all([本の集計(b.id), 本の声(b.id)]);
   const 受 = 届け先(b);
 
   return `
@@ -613,12 +613,12 @@ async function 頁_本(){
     </div>
   </div>
 
-  ${入ってる ? `<div class="数字たち" style="margin-top:44px">
+  <div class="数字たち" style="margin-top:44px">
     ${数字("Thanks", s.人数.toLocaleString(), "本返しした人")}
     ${数字("Returned", pt(s.金額).replace("pt",""), "この本から返った分（pt）", true)}
     ${数字("Voices", 声たち.length.toLocaleString(), "読後のことば")}
     ${数字("Keep", s.残数.toLocaleString(), s.約額?`残したい（${pt(s.約額)}の意思）`:"残したい")}
-  </div>` : ""}
+  </div>
 
   <section class="節">
     ${節の頭("この本を支える人たち", "応援する対象は本、受け取るのは人")}
@@ -638,13 +638,9 @@ async function 頁_本(){
   </section>
 
   <section class="節">
-    ${節の頭("読者からの声", 入ってる ? 声たち.length+"件" : "")}
+    ${節の頭("読者からの声", 声たち.length+"件")}
     <div class="声の列">
-      ${!入ってる
-        ? `<p class="節の注" style="padding:20px 0">
-             読者のことばは、入ってから読めます。
-             <button class="釦 枠だけ 小" style="margin-left:10px" onclick="ログイン()">Googleで入る</button></p>`
-        : 声たち.length ? 声たち.map(v=>声の行(v)).join("")
+      ${声たち.length ? 声たち.map(v=>声の行(v)).join("")
         : '<p class="節の注" style="padding:20px 0">まだ声はありません。</p>'}
     </div>
   </section>`;
