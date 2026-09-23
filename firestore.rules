@@ -274,8 +274,13 @@ service cloud.firestore {
           管理者が確認して books へ移すまでは、ここに留まる。 */
 
     match /requests/{id} {
-      allow read: if request.auth != null;
-      allow update, delete: if isAdmin();   // 承認・却下は管理者だけ
+      /* ⚠️ 前は「入っている人なら誰でも全員分」読めた（書名・ひとこと・名前を含む）。
+            わたしの本返しに「あなたの申請」を出すのに要るのは自分の分だけなので、
+            本人と管理者に絞った（2026-09-23）。画面は where(from==自分) で引くこと */
+      allow read: if isAdmin()
+        || (request.auth != null && resource.data.from == request.auth.uid);
+      /* 承認・見送りは管理者だけ。status（並んだ／見送り）と book（並んだ本の ISBN）を足す */
+      allow update, delete: if isAdmin();
 
       allow create: if isMe(request.resource.data.from)
         && request.resource.data.keys().hasOnly(

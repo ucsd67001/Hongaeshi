@@ -270,7 +270,25 @@ const 声の行 = (v, 本を出す=false) => `<div class="声">
       「無い」と気づく場所すべてに置くこと（検索の空振り、一覧の頭、本のページ）。 */
 const 申請ボタン = () => `<button class="釦" onclick="${土台.私 ? "申請を始める()" : "ログイン()"}">
   ${土台.私 ? "この本を入れてほしい" : "入って登録をお願いする"}</button>`;
-const 申請リンク = () => `<a onclick="${土台.私 ? "申請を始める()" : "ログイン()"}">登録をお願いできます</a>`;
+
+/* 棚の育ち具合。
+   ⚠️ 冊数が少ないうちは「少ない」ではなく「みんなで育てている途中」と伝える（2026-09-23）。
+      前は「89冊あります。ここに無い本は、登録をお願いできます」と小さな字で書いてあるだけで、
+      参加できることが伝わらなかった。トップと本の一覧の頭に置く */
+function 棚の育ち(){
+  /* ⚠️ 「今月＋○冊」は、全冊ではないときだけ出す。2026-09-23 時点では 89冊すべての登録日が
+        同じ日（棚を作り直した日）で、「いま89冊・今月＋89冊」と意味の無い並びになった */
+  const 増 = 土台.今月増えた(), 全 = 土台.蔵書.length;
+  return `<div class="育つ棚">
+    <p class="育つ棚の数"><b>いま ${全}冊</b>${増 && 増 < 全 ? `<span>今月 ＋${増}冊</span>` : ""}</p>
+    <p class="節の注" style="margin:6px 0 0">
+      棚は、読んだ人の申請で育っています。読んだ本が見つからなければ、登録をお願いしてください。
+      確かめてから棚に並べます。並んだかどうかは「わたしの本返し」で見られます。</p>
+    <button class="釦 枠だけ 小" style="margin-top:12px"
+      onclick="${土台.私 ? "申請を始める()" : "ログイン()"}">
+      ${土台.私 ? "読んだ本を棚に加える" : "入って、読んだ本を棚に加える"}</button>
+  </div>`;
+}
 
 /* 印つきの名前。**名前が出るところには必ずこれを使う。**
    ⚠️ 匿名のときは印を出さない（誰のものか分かってしまう）。 */
@@ -534,9 +552,8 @@ async function 頁_さがす(){
       <input name="q" placeholder="書名・著者名で探す" value="${逃(q)}">
       <button type="submit">さがす</button>
     </form>
-    <p class="節の注" style="margin-top:14px">
-      ${土台.蔵書.length}冊あります。<a onclick="go('books')">一覧を見る</a>。
-      ここに無い本は、${申請リンク()}。</p>
+    <p class="節の注" style="margin-top:14px"><a onclick="go('books')">本の一覧を見る</a></p>
+    ${棚の育ち()}
     <div class="数字たち">
       ${数字("Thanks", 全体.人数.toLocaleString(), "これまでの本返し")}
       ${数字("Returned", pt(全体.金額).replace("pt",""), "本の世界へ届いた分（pt）", true)}
@@ -613,8 +630,7 @@ async function 頁_一覧(){
       <input name="q" placeholder="書名・著者・出版社でしぼる" value="${逃(q)}">
       <button type="submit">しぼる</button>
     </form>
-    <p class="節の注" style="margin-top:14px">
-      ここに無い本は、${申請リンク()}。AmazonのURLかISBNがあれば、その場で書誌を引きます。</p>
+    ${棚の育ち()}
   </section>
 
   <section class="節">
@@ -710,6 +726,9 @@ async function 頁_本(){
       ${b.副題 ? `<p class="本の副題">${逃(b.副題)}</p>` : ""}
       <p class="本の素性" style="font-size:12.5px;margin-top:12px">
         ${逃(b.著)}<br>${版元と年(b)}${b.頁?`　${b.頁}ページ`:""}${b.isbn?`<br>ISBN ${b.isbn}`:""}</p>
+      ${/* 申請した人を讃える。⚠️ 名前を出すのは、読書家のページを公開している人だけ */
+        b.申請者 && 土台.公開か(b.申請者) ? `<p class="申請の礼">
+          ${読書家の名(b.申請者, 土台.名を引く(b.申請者))} さんの申請で、棚に並びました</p>` : ""}
       <div style="margin-top:14px;display:flex;gap:7px;flex-wrap:wrap">
         ${b.状態==="絶版"?'<span class="札 注">絶版・品切れ</span>':'<span class="札 済">流通中</span>'}
         ${受.length?"":'<span class="札 注">届け先なし</span>'}
@@ -997,8 +1016,9 @@ function 申請描く(欄を保つ){
       <div class="印">📖</div>
       <h3 style="font-size:19px;margin:16px 0 10px;font-weight:600;letter-spacing:.09em">受け取りました</h3>
       <p class="節の注" style="margin:0">書誌を確かめてから棚に並べます。<br>
-        少しお時間をください。</p>
+        並んだかどうかは「わたしの本返し」の「あなたの申請」で見られます。</p>
       <button class="釦 全幅" style="margin-top:26px" onclick="覆い閉じ();location.reload()">閉じる</button>
+      <button class="釦 枠だけ 全幅" style="margin-top:10px" onclick="覆い閉じ();go('mine')">あなたの申請を見る</button>
     </div>` : `
     <p class="節の注" style="margin:0">棚に無い本を教えてください。確認のうえ並べます。</p>
 
@@ -1249,7 +1269,11 @@ window.名乗りを保存 = async ()=>{
    ============================================================ */
 async function 頁_私(){
   if(!土台.私) return 入るには();
-  const 行 = await 私の記録();
+  /* ⚠️ 申請が読めなくても（ルールを変えた直後など）、記録の画面は出す */
+  const [行, 申請ら] = await Promise.all([
+    私の記録(),
+    土台.私の申請().catch(e=>{ console.error(e); return []; })
+  ]);
   const 返し = 行.filter(x=>x.種==="返し");
   const 合計 = 返し.reduce((s,x)=>s+x.額,0);
   const 純 = 受取人へ(合計);
@@ -1282,6 +1306,22 @@ async function 頁_私(){
         <td style="color:var(--字のごく薄い);white-space:nowrap">${いつ(r.時)}</td></tr>`}).join("")
       : '<tr><td colspan="5" style="color:var(--字のごく薄い)">まだ記録がありません。本をさがして、返してみてください。</td></tr>'}
     </table></div>
+  </section>
+
+  ${/* ⚠️ 申請の結果を見せて輪を閉じる。並んだと分かれば、次も申請したくなる */ ""}
+  <section class="節">
+    ${節の頭("あなたの申請", 申請ら.length + "件")}
+    <div class="表の板"><table>
+      <tr><th>本</th><th>いま</th><th>いつ</th></tr>
+      ${申請ら.length ? 申請ら.map(r=>`<tr>
+        <td class="本">${r.本 && 本を引く(r.本)
+          ? `<a onclick="go('book',{id:${引数(r.本)}})">${逃(本を引く(r.本).題)}</a>`
+          : 逃(r.題)}</td>
+        <td><span class="札 ${r.状態==="並んだ" ? "済" : r.状態==="見送り" ? "注" : "藤"}">${逃(土台.申請の状態[r.状態] || r.状態)}</span></td>
+        <td style="color:var(--字のごく薄い);white-space:nowrap">${いつ(r.時)}</td></tr>`).join("")
+      : `<tr><td colspan="3" style="color:var(--字のごく薄い)">まだ申請はありません。</td></tr>`}
+    </table></div>
+    <button class="釦 枠だけ 小" style="margin-top:16px" onclick="申請を始める()">読んだ本を棚に加える</button>
   </section>`;
 }
 
@@ -1329,6 +1369,8 @@ async function 頁_読書家(){
   </section>
 
   ${流れる列("推している本", `${本ら.length}冊`, 本ら, null, false)}
+  ${(()=>{ const 加えた = 土台.蔵書.filter(b=>b.申請者 === uid);
+    return 流れる列("棚に加えた本", `申請で並んだ ${加えた.length}冊`, 加えた, null, false); })()}
 
   <section class="節">
     ${節の頭("ことば", ことば.length + "件")}

@@ -315,10 +315,11 @@ async function 頁_申請の管理(){
         <td>${逃(r.publisher||"―")}</td>
         <td style="font-size:11px">${逃(r.isbn||"―")}</td>
         <td style="color:var(--字のごく薄い);white-space:nowrap">${いつ(r.at)}</td>
-        <td class="右" style="white-space:nowrap">${r.done ? '<span class="札 済">処理済</span>'
+        <td class="右" style="white-space:nowrap">${r.done
+          ? `<span class="札 ${r.status==="見送り"?"注":"済"}">${逃(土台.申請の状態[r.status] || "処理済")}</span>`
           : `<button class="釦 小" onclick="申請を本にする(${引数(r.id)})">本にする</button>
              <button class="釦 枠だけ 小" style="margin-left:4px"
-               onclick="申請を処理(${引数(r.id)})">却下</button>`}</td>
+               onclick="申請を処理(${引数(r.id)})">見送り</button>`}</td>
       </tr>`).join("")
       : '<tr><td colspan="6" style="color:var(--字のごく薄い)">申請はまだありません。</td></tr>'}
     </table></div>
@@ -331,10 +332,11 @@ async function 頁_申請の管理(){
   </section>`;
 }
 
+/* 見送り。⚠️ status を残す。done だけだと、出した人の画面で「並んだ」のか分からない */
 window.申請を処理 = async id=>{
   try{
-    await updateDoc(doc(土台.db, "requests", id), { done: true });
-    知らせる("処理済にしました"); window.描き直す();
+    await updateDoc(doc(土台.db, "requests", id), { done: true, status: "見送り" });
+    知らせる("見送りにしました"); window.描き直す();
   }catch(e){ console.error(e); 知らせる("できませんでした", true); }
 };
 
@@ -363,7 +365,7 @@ window.申請を本にする = async id=>{
   const d = await getDoc(doc(土台.db, "requests", id));
   if(!d.exists()) return;
   const r = d.data();
-  T = { 申請:id, 題:r.title||"", 著:r.author||"", 版元:r.publisher||"",
+  T = { 申請:id, 申請者:r.from||null, 題:r.title||"", 著:r.author||"", 版元:r.publisher||"",
         isbn:(r.isbn||"").replace(/[^0-9Xx]/g,""), amazon:"", ラベル:"",
         送信中:false, 済:false };
   本にする描く();
@@ -467,11 +469,14 @@ window.申請を登録する = async ()=>{
 
     const asin = 土台.AmazonのASIN(T.amazon);
     const 束 = writeBatch(土台.db);
-    /* ⚠️ merge:true。すでにある主体の claimed を壊さない */
-    主体.forEach(e=>束.set(doc(土台.db,"entities",e.id),
+    /* ⚠️⚠️ **すでにある主体には書かない。**前は merge:true で claimed:false・aliases:[名] を書いていて、
+          「merge だから壊さない」とコメントしていたが、**merge でも書いた項目は上書きされる。**
+          引き継ぎ済みの出版社の本を申請から入れると、引き継ぎが外れ、統合で集めた別名も消えていた
+          （まだ誰も引き継いでいないので実害は無かった。2026-09-23 に直した）。
+          → 新しい主体だけを作る。あるかどうかは読み込み済みの 主体表 で見る */
+    主体.filter(e=>!土台.主体表.has(e.id)).forEach(e=>束.set(doc(土台.db,"entities",e.id),
       { type:e.type, name:e.name, key:e.key, aliases:[e.name],
-        claimed:false, claimedBy:null, detail:{}, updatedAt:new Date().toISOString() },
-      { merge:true }));
+        claimed:false, claimedBy:null, detail:{}, updatedAt:new Date().toISOString() }));
     束.set(doc(土台.db,"books",T.isbn), {
       isbn:T.isbn, title:題, subtitle:副.join(" : ")||null,
       authorText:T.著, publisherText:T.版元, year:Number(T.年)||null,
@@ -480,9 +485,11 @@ window.申請を登録する = async ()=>{
         ? [{ label:T.ラベル||"", url:`https://www.amazon.co.jp/dp/${asin}?tag=${土台.アソシエイトタグ}` }]
         : [],
       to:受取, status:"流通",
-      addedBy:"admin", addedAt:new Date().toISOString(), public:true
+      addedBy:"admin", addedAt:new Date().toISOString(), public:true,
+      /* 申請した人。本のページで「○○さんの申請で並びました」と出す（公開している人だけ） */
+      requestedBy: T.申請者
     }, { merge:true });
-    束.update(doc(土台.db,"requests",T.申請), { done:true });
+    束.update(doc(土台.db,"requests",T.申請), { done:true, status:"並んだ", book:T.isbn });
     await 束.commit();
 
     T.送信中 = false; T.済 = true; 本にする描く();

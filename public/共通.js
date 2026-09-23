@@ -330,6 +330,9 @@ export async function 蔵書をよみこむ(){
       Amazonら: (x.amazonLinks && x.amazonLinks.length ? x.amazonLinks
                  : x.amazonUrl ? [{ label:"", url:x.amazonUrl }] : []),
       登録日: x.addedAt || null,
+      /* 申請から並んだ本なら、申請した人の uid。画面に名前を出すのは、
+         読書家のページを公開している人だけ（公開か() で絞る） */
+      申請者: x.requestedBy || null,
       状態: x.status || "流通",
       色: 題から色(x.title),
       受取: (x.to || []).map(id=>{
@@ -471,6 +474,24 @@ export async function 登録を申請する({ 題, 著, 版元, isbn, 覚書 }){
   });
   return true;
 }
+
+/* 自分が出した申請と、そのその後。
+   ⚠️ 申請が棚に並んだか分からないと、出した人は次を出さない。結果を見せて輪を閉じる。
+   ⚠️ status が無い古い申請は、done で読み替える（done だけでは並んだか見送りか分からない）。
+   ⚠️ where(from==自分) だけで引き、並べ替えは手元でする（複合インデックスを増やさない） */
+export const 申請の状態 = { 確認中:"確認中", 並んだ:"棚に並びました", 見送り:"見送り", 処理済み:"処理済み" };
+export async function 私の申請(){
+  if(!私) return [];
+  const s = await getDocs(query(collection(db, "requests"), where("from", "==", 私.uid)));
+  return s.docs.map(d=>{
+    const x = d.data();
+    return { id:d.id, 題:x.title || "", 著:x.author || "", 本:x.book || null, 時:x.at,
+             状態: x.status || (x.done ? "処理済み" : "確認中") };
+  }).sort((a,b)=>(b.時?.seconds||0) - (a.時?.seconds||0));
+}
+
+/* 棚の育ち具合。今月（UTC の月。財布の配布と同じ区切り）に入った冊数 */
+export const 今月増えた = () => 蔵書.filter(b=>String(b.登録日 || "").startsWith(今月())).length;
 
 /* ISBN から書誌を引く。見つからなければ null（入力の補助なので、失敗しても止めない） */
 export async function ISBNで確かめる(isbn){
