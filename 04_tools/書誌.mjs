@@ -49,8 +49,15 @@ export async function openBDで引く(isbn){
   catch(e){ return null; }
   if(!d) return null;
   const s = d.summary || {};
+  /* ⚠️ **ページ数は openBD にもある。**ONIX の Extent。
+        Google Books だけに頼っていたら、日本の本で欠けた（2026-09-23、
+        『偉人たちの挑戦』6冊のうち3冊が頁なしで入った）。
+        ExtentUnit "03" がページ。これ以外（語数・分）は取らないこと。 */
+  const 頁 = (d.onix?.DescriptiveDetail?.Extent || [])
+    .filter(x=>x.ExtentUnit === "03")
+    .map(x=>Number(x.ExtentValue)).filter(n=>n > 0).sort((a,b)=>b-a)[0] || null;
   return { 出典:"openBD", isbn:s.isbn || isbn, 題:s.title, 著:s.author,
-           版元:s.publisher, 年:(s.pubdate||"").slice(0,4), 書影:s.cover || null };
+           版元:s.publisher, 年:(s.pubdate||"").slice(0,4), 書影:s.cover || null, 頁 };
 }
 
 /* ── 国会図書館サーチ SRU（書名 → 候補） ───────── */

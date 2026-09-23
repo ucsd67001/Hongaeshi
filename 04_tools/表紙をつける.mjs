@@ -38,6 +38,7 @@ import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { initializeApp, cert } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
+import { openBDで引く } from "./書誌.mjs";
 
 const 下見 = process.argv.includes("--下見");
 const 全部 = process.argv.includes("--全部");
@@ -120,15 +121,24 @@ for(const d of 本ら){
 
   const 判定 = await 本物の表紙か(g.表紙, b.title);
 
+  /* ⚠️ Google に頁が無いことは多い。**openBD のほうが日本の本には強い。**
+        Google → openBD の順に見る（Google のほうが版の取り違えが少ないため）。 */
+  let 頁 = g.頁 || null, 頁の出どころ = 頁 ? "Google" : null;
+  if(!頁 && (全部 || !b.pages)){
+    const o = await openBDで引く(b.isbn);
+    if(o?.頁){ 頁 = o.頁; 頁の出どころ = "openBD"; }
+  }
+
   const 中身 = {};
-  if(g.頁 && (全部 || !b.pages)) 中身.pages = g.頁;
+  if(頁 && (全部 || !b.pages)) 中身.pages = 頁;
   if(g.id) 中身.googleId = g.id;
   中身.cover    = 判定.可 ? g.表紙 : null;   // ⚠️ 実在を確かめたものだけ
   中身.coverAlt = null;
   直すもの.push({ id:d.id, 中身 });
 
   console.log(`  ${判定.可 ? "◎" : " "} ${b.title.slice(0,28)}`);
-  console.log(`      頁 ${g.頁 ?? "―"}   Google ${判定.可 ? 判定.訳 : "× " + 判定.訳}`);
+  console.log(`      頁 ${頁 ?? "―"}${頁の出どころ ? `(${頁の出どころ})` : ""}`
+    + `   Google ${判定.可 ? 判定.訳 : "× " + 判定.訳}`);
   await new Promise(r=>setTimeout(r, 200));
 }
 

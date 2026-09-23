@@ -16,6 +16,10 @@
 
    ⚠️ 出版社を埋めると届け先（to）も足りなくなるので、主体を作って足す。
 
+   ⚠️⚠️ **ページ数は3か所に分かれている。**Google Books（表紙をつける.mjs）、
+      openBD の ONIX Extent（書誌.mjs）、そして国会図書館の dc:extent。
+      日本の本は Google に無いことが多いので、**ここが最後の砦**。
+
    環境変数: HONGAESHI_KEY
    ============================================================ */
 
@@ -39,15 +43,19 @@ async function NDLでISBNを引く(isbn){
   const 件ら = [...xml.matchAll(/<item>([^]*?)<\/item>/g)].map(m=>({
     題: 抜く(m[1], "dc:title"),
     版元: 抜く(m[1], "dc:publisher"),
-    年: (抜く(m[1], "dcterms:issued") || 抜く(m[1], "dc:date") || "").match(/\d{4}/)?.[0] || null
+    年: (抜く(m[1], "dcterms:issued") || 抜く(m[1], "dc:date") || "").match(/\d{4}/)?.[0] || null,
+    /* ⚠️ 実物は "308p ; 15cm" や "163p" や "2冊"。**「数字＋p」だけ取る。**
+          寸法の 15cm を頁として拾わないよう、単位まで見ること。 */
+    頁: Number((抜く(m[1], "dc:extent") || "").match(/(\d{1,5})\s*p/)?.[1]) || null
   }));
-  /* ⚠️ 同じISBNで複数返ることがある。版元と年の埋まっているものを優先 */
-  return 件ら.sort((a,b)=>
-    (b.版元?1:0)+(b.年?1:0) - ((a.版元?1:0)+(a.年?1:0)))[0] || null;
+  /* ⚠️ 同じISBNで複数返ることがある。版元と年と頁の埋まっているものを優先 */
+  const 点 = x => (x.版元?1:0) + (x.年?1:0) + (x.頁?1:0);
+  return 件ら.sort((a,b)=>点(b) - 点(a))[0] || null;
 }
 
 const 本ら = await db.collection("books").get();
-const 欠け = 本ら.docs.filter(d=>{ const x = d.data(); return !x.publisherText || !x.year; });
+const 欠け = 本ら.docs.filter(d=>{
+  const x = d.data(); return !x.publisherText || !x.year || !x.pages; });
 console.log(`棚 ${本ら.docs.length}冊。欠けている本 ${欠け.length}冊を見ます。\n`);
 
 const 直す = [], 作る主体 = new Map();
@@ -56,10 +64,12 @@ for(const d of 欠け){
   const n = await NDLでISBNを引く(x.isbn);
   const 版元 = x.publisherText || 名前をととのえる(n?.版元 || "") || null;
   const 年   = x.year || (n?.年 ? Number(n.年) : null);
+  const 頁   = x.pages || n?.頁 || null;
 
   const 中身 = {};
   if(!x.publisherText && 版元) 中身.publisherText = 版元;
   if(!x.year && 年) 中身.year = 年;
+  if(!x.pages && 頁) 中身.pages = 頁;
 
   /* 出版社を足したなら、届け先にも足す */
   if(中身.publisherText){
@@ -74,6 +84,7 @@ for(const d of 欠け){
   console.log(`  ${印} ${(x.title||"").slice(0,26)}`);
   console.log(`      版元 ${x.publisherText || "（なし）"} → ${版元 || "（取れず）"}`);
   console.log(`      年   ${x.year || "（なし）"} → ${年 || "（取れず）"}`);
+  console.log(`      頁   ${x.pages || "（なし）"} → ${頁 || "（取れず）"}`);
   if(Object.keys(中身).length) 直す.push({ id:d.id, 中身 });
   await new Promise(r=>setTimeout(r, 400));   // ⚠️ 国会図書館は並列に弱い
 }

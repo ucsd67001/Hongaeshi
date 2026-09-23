@@ -147,8 +147,21 @@ function 表紙img(b){
   const 控え = b.控えの書影 && b.控えの書影 !== b.書影 ? 逃(b.控えの書影) : "";
   return `<img src="${逃(b.書影)}" alt="" loading="lazy"
     data-控え="${控え}"
-    onerror="this.dataset.控え ? (this.src=this.dataset.控え, this.dataset.控え='') : this.remove()">`;
+    onload="表紙をみる(this)"
+    onerror="表紙をやめる(this)">`;
 }
+
+/* ⚠️⚠️ **Amazon は、表紙が無くても 200 を返す。**中身は43バイトの
+      1×1 の透明画像で、`onerror` は鳴らない。**読めたかどうかでは判定できない。**
+      （2026-09-23、『偉人たちの挑戦』6冊のうち4冊がこれだった）
+      Google Books の「image not available」も同じ性質で、あちらは
+      04_tools/表紙をつける.mjs が大きさと中身の md5 で弾いている。
+      こちらは外のURLを指すだけなので、**出たところの大きさで見る。** */
+window.表紙をみる = el =>{ if(el.naturalWidth <= 2 || el.naturalHeight <= 2) 表紙をやめる(el); };
+window.表紙をやめる = el =>{
+  if(el.dataset.控え){ const u = el.dataset.控え; el.dataset.控え = ""; el.src = u; }
+  else el.remove();     // 消せば、下に敷いてある色の背表紙が出る
+};
 
 /* ── 横に流れる列 ────────────────────────────
    ⚠️ 本を全部縦に並べると、冊数が増えたときに破綻する。
