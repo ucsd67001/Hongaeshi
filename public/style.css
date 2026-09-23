@@ -503,3 +503,12 @@ td.本{font-family:var(--明朝);font-size:14.5px}
 .色:hover{transform:scale(1.12)}
 /* ⚠️ 選んでいる色は、外側に離した輪で示す。枠を内側に足すと色が細って見える */
 .色[aria-pressed="true"]{box-shadow:0 0 0 2px var(--面),0 0 0 3px var(--字)}
+
+
+/* ── 副題 ────────────────────────────────
+   ⚠️ 巻の見分けがこれだけ、ということがある（『三剣物語』1〜3巻と外伝）。
+      小さく出すが、**出さないという選択はしない。** */
+.副題{font-size:.82em;color:var(--字のごく薄い);margin-left:.5em;font-weight:400}
+.流し札 .副題{display:block;margin-left:0;margin-top:2px}
+.本の副題{font-family:var(--明朝);font-size:15px;color:var(--字の薄い);
+  margin:6px 0 0;line-height:1.7}

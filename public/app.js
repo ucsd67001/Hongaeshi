@@ -131,12 +131,18 @@ function 本の札(b, s){
       ${表紙img(b)}
       <span>${逃(b.題)}</span></div>
     <div style="flex:1;min-width:0">
-      <div class="本の名">${逃(b.題)}${b.状態==="絶版"?' <span class="札 注">絶版</span>':""}</div>
+      <div class="本の名">${逃(b.題)}${副(b)}${b.状態==="絶版"?' <span class="札 注">絶版</span>':""}</div>
       <div class="本の素性">${逃(b.著)}　—　${版元と年(b)}${b.頁?`　${b.頁}ページ`:""}</div>
     </div>
     <div class="本の数">${右}</div>
   </button>`;
 }
+
+/* ⚠️⚠️ **副題を出さないと、巻が見分けられない。**
+      『三剣物語』は1〜3巻と外伝で題がまったく同じで、
+      違うのは副題（「1 炎の剣」「外伝 マーシリアの…」）だけだった（2026-09-23）。
+      題を出すところには、必ずこれを添えること。 */
+const 副 = b => b.副題 ? `<span class="副題">${逃(b.副題)}</span>` : "";
 
 /* 表紙の img。
    ⚠️ 優先順位は 共通.js の 蔵書をよみこむ() で決めている:
@@ -176,7 +182,7 @@ function 流し札(b, s){
       ${表紙img(b)}
       <span>${逃(b.題)}</span>
     </div>
-    <div class="名">${逃(b.題)}</div>
+    <div class="名">${逃(b.題)}${副(b)}</div>
     <div class="素性">${逃(b.著)}</div>
     <div class="素性">${版元と年(b)}</div>
     ${下}
@@ -622,6 +628,7 @@ async function 頁_本(){
     <div style="flex:1;min-width:0">
       <p class="英字の札" style="margin-bottom:12px">${b.状態==="絶版"?"Out of print":"In print"}</p>
       <h1 class="本の題">${逃(b.題)}</h1>
+      ${b.副題 ? `<p class="本の副題">${逃(b.副題)}</p>` : ""}
       <p class="本の素性" style="font-size:12.5px;margin-top:12px">
         ${逃(b.著)}<br>${版元と年(b)}${b.頁?`　${b.頁}ページ`:""}${b.isbn?`<br>ISBN ${b.isbn}`:""}</p>
       <div style="margin-top:14px;display:flex;gap:7px;flex-wrap:wrap">
