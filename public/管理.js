@@ -22,7 +22,7 @@
 
 import * as 土台 from "./共通.js";
 import { 主体のid, 読める名に, 著者をばらす, 出版社キー, 著者キー, ゆるいキー } from "./名寄せ.js";
-const { 逃, pt, いつ, 知らせる } = 土台;
+const { 逃, 引数, pt, いつ, 知らせる, 窓を出す, 覆い閉じ } = 土台;
 
 const {
   doc, getDoc, setDoc, updateDoc, deleteDoc, collection, query, where,
@@ -74,7 +74,7 @@ async function 頁_本の管理(){
     <div class="表の板"><table>
       <tr><th>題</th><th>著者</th><th>出版社</th><th>年</th><th>届け先</th><th></th></tr>
       ${本ら.map(b=>`<tr>
-        <td class="本"><a onclick="go('book',{id:'${b.id}'})">${逃(b.題)}</a>
+        <td class="本"><a onclick="go('book',{id:${引数(b.id)}})">${逃(b.題)}</a>
           ${b.副題?`<br><span style="font-size:11px;color:var(--字のごく薄い)">${逃(b.副題)}</span>`:""}
           <br><span style="font-size:10.5px;color:var(--字のごく薄い)">${b.isbn}</span></td>
         <td>${逃(b.著)}</td>
@@ -82,8 +82,8 @@ async function 頁_本の管理(){
         <td>${b.年||"―"}</td>
         <td style="font-size:11px;color:var(--字のごく薄い)">${b.受取.map(r=>逃(r.名)).join("<br>")}</td>
         <td class="右" style="white-space:nowrap">
-          <button class="釦 枠だけ 小" onclick="本を直す('${b.id}')">直す</button>
-          <button class="釦 枠だけ 小" style="margin-left:4px" onclick="本を消す('${b.id}')">消す</button>
+          <button class="釦 枠だけ 小" onclick="本を直す(${引数(b.id)})">直す</button>
+          <button class="釦 枠だけ 小" style="margin-left:4px" onclick="本を消す(${引数(b.id)})">消す</button>
         </td></tr>`).join("")}
     </table></div>
   </section>`;
@@ -110,7 +110,7 @@ window.本を直す = id=>{
     <div style="display:flex;gap:10px;align-items:flex-end">
       <input class="欄" id="直すAmazon" value="${逃(b.Amazon||"")}" placeholder="空なら出しません">
       <button class="釦 枠だけ 小" style="white-space:nowrap"
-        onclick="Amazonを作る('${b.isbn}')">ISBNから作る</button>
+        onclick="Amazonを作る(${引数(b.isbn)})">ISBNから作る</button>
     </div>
     <div class="断り" style="margin-top:16px">
       ⚠️ Amazonリンクは<b>自動では付けません。</b>全ページにAmazonが並ぶのは、
@@ -119,7 +119,7 @@ window.本を直す = id=>{
     <div class="断り" style="margin-top:16px">
       届け先（${b.受取.map(r=>逃(r.名)).join("、")}）は、ここでは変えられません。
       主体の統合で直してください。</div>
-    <button class="釦 全幅" style="margin-top:20px" onclick="本を直す確定('${b.id}')">直す</button>`);
+    <button class="釦 全幅" style="margin-top:20px" onclick="本を直す確定(${引数(b.id)})">直す</button>`);
 };
 
 window.本を直す確定 = async id=>{
@@ -157,7 +157,7 @@ window.本を消す = id=>{
       間違って登録したものだけを消してください。</div>
     <div style="display:flex;gap:10px;margin-top:22px">
       <button class="釦 枠だけ" onclick="閉じる()">やめる</button>
-      <button class="釦 朱" style="flex:1" onclick="本を消す確定('${id}')">消す</button>
+      <button class="釦 朱" style="flex:1" onclick="本を消す確定(${引数(id)})">消す</button>
     </div>`);
 };
 
@@ -195,7 +195,7 @@ async function 頁_主体の管理(){
     <div class="受取の列">
       ${候補.map(([a,b])=>`<div class="受取の行">
         <div style="flex:1">${逃(a.名)}（${冊数(a.id)}冊）　と　${逃(b.名)}（${冊数(b.id)}冊）</div>
-        <button class="釦 枠だけ 小" onclick="統合する('${a.id}','${b.id}')">見くらべる</button>
+        <button class="釦 枠だけ 小" onclick="統合する(${引数(a.id)},${引数(b.id)})">見くらべる</button>
       </div>`).join("")}
     </div>
   </section>` : ""}
@@ -212,8 +212,8 @@ async function 頁_主体の管理(){
         <td style="font-size:10.5px;color:var(--字のごく薄い)">${逃(e.id)}</td>
         <td>${e.認証?'<span class="札 済">認証済</span>':'<span class="札 藤">引き継ぎ待ち</span>'}</td>
         <td class="右" style="white-space:nowrap">
-          <button class="釦 枠だけ 小" onclick="主体を直す('${e.id}')">名称</button>
-          <button class="釦 枠だけ 小" style="margin-left:4px" onclick="統合を選ぶ('${e.id}')">統合</button>
+          <button class="釦 枠だけ 小" onclick="主体を直す(${引数(e.id)})">名称</button>
+          <button class="釦 枠だけ 小" style="margin-left:4px" onclick="統合を選ぶ(${引数(e.id)})">統合</button>
         </td></tr>`).join("")}
     </table></div>
   </section>`;
@@ -226,7 +226,7 @@ window.主体を直す = id=>{
       画面に出る名称だけを直します。</p>
     <label class="名札">名称</label>
     <input class="欄" id="直す名称" value="${逃(e.名)}">
-    <button class="釦 全幅" style="margin-top:22px" onclick="主体を直す確定('${id}')">直す</button>`);
+    <button class="釦 全幅" style="margin-top:22px" onclick="主体を直す確定(${引数(id)})">直す</button>`);
 };
 window.主体を直す確定 = async id=>{
   const 名 = document.getElementById("直す名称")?.value.trim();
@@ -248,7 +248,7 @@ window.統合を選ぶ = id=>{
       ${他.length ? 他.map(x=>`<div class="受取の行">
         <div style="flex:1;font-size:13px">${逃(x.名)}
           <span style="font-size:10.5px;color:var(--字のごく薄い)"><br>${逃(x.id)}</span></div>
-        <button class="釦 枠だけ 小" onclick="統合する('${id}','${x.id}')">これ</button>
+        <button class="釦 枠だけ 小" onclick="統合する(${引数(id)},${引数(x.id)})">これ</button>
       </div>`).join("") : '<p class="節の注">同じ種の主体が他にありません。</p>'}
     </div>`);
 };
@@ -270,7 +270,7 @@ window.統合する = (残すid, 消すid)=>{
       残すほうに「旧id」として覚えさせ、受取の集計で拾えるようにします。</div>
     <div style="display:flex;gap:10px;margin-top:22px">
       <button class="釦 枠だけ" onclick="閉じる()">やめる</button>
-      <button class="釦" style="flex:1" onclick="統合する確定('${残すid}','${消すid}')">統合する</button>
+      <button class="釦" style="flex:1" onclick="統合する確定(${引数(残すid)},${引数(消すid)})">統合する</button>
     </div>`);
 };
 
@@ -316,9 +316,9 @@ async function 頁_申請の管理(){
         <td style="font-size:11px">${逃(r.isbn||"―")}</td>
         <td style="color:var(--字のごく薄い);white-space:nowrap">${いつ(r.at)}</td>
         <td class="右" style="white-space:nowrap">${r.done ? '<span class="札 済">処理済</span>'
-          : `<button class="釦 小" onclick="申請を本にする('${r.id}')">本にする</button>
+          : `<button class="釦 小" onclick="申請を本にする(${引数(r.id)})">本にする</button>
              <button class="釦 枠だけ 小" style="margin-left:4px"
-               onclick="申請を処理('${r.id}')">却下</button>`}</td>
+               onclick="申請を処理(${引数(r.id)})">却下</button>`}</td>
       </tr>`).join("")
       : '<tr><td colspan="6" style="color:var(--字のごく薄い)">申請はまだありません。</td></tr>'}
     </table></div>
@@ -339,18 +339,10 @@ window.申請を処理 = async id=>{
 };
 
 /* ── 小さな覆い ───────────────────────────── */
-const 窓 = () => document.getElementById("窓");
-function 開く(題, 中){
-  窓().innerHTML = `
-  <div class="覆い" onclick="if(event.target===this)閉じる()">
-    <div class="窓">
-      <div class="窓の頭"><h3>${題}</h3>
-        <button class="閉じる" onclick="閉じる()">✕</button></div>
-      <div class="窓の中">${中}</div>
-    </div></div>`;
-}
-function 閉じる(){ 窓().innerHTML = ""; }
-window.閉じる = 閉じる;
+/* 組み立ては 共通.js の 窓を出す() に一本化した。ここでは名前だけ残す */
+const 開く = (題, 中) => 窓を出す(題, 中);
+const 閉じる = 覆い閉じ;
+window.閉じる = 閉じる;     // 画面の onclick="閉じる()" から呼ぶ
 
 /* ============================================================
    申請を本にする
@@ -418,13 +410,7 @@ function 本にする描く(欄を保つ){
     <button class="釦 全幅" style="margin-top:20px" ${T.送信中?"disabled":""}
       onclick="申請を登録する()">${T.送信中?"登録しています…":"棚に並べる"}</button>`;
 
-  窓().innerHTML = `
-  <div class="覆い" onclick="if(event.target===this)閉じる()">
-    <div class="窓">
-      <div class="窓の頭"><h3>${T.済?"":"申請を本にする"}</h3>
-        <button class="閉じる" onclick="閉じる()">✕</button></div>
-      <div class="窓の中">${中}</div>
-    </div></div>`;
+  開く(T.済 ? "" : "申請を本にする", 中);
   if(欄を保つ){ const e=document.getElementById(欄を保つ);
     if(e){ e.focus(); e.setSelectionRange(e.value.length, e.value.length); } }
 }

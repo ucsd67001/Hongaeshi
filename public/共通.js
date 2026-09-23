@@ -46,7 +46,37 @@ export const Firestore = {
 /* ── きまり ───────────────────────────────── */
 export const 決済率 = 0.05;      // 決済手数料（本番でかかる想定ぶん）
 export const 運営率 = 0.05;      // 本返しの運営ぶん
+/* ⚠️ 1 - 0.05 - 0.05 は 0.8999999999999999 になる。そのまま掛けると、
+      ちょうど .5 になる額で四捨五入が変わり（25pt の9割が 23 → 22）、
+      **過去の記録の受取額まで変わって見える。**百分率で丸めてから戻す */
+export const 受取率の百分率 = Math.round((1 - 決済率 - 運営率) * 100);   // 90
+export const 受取率 = 受取率の百分率 / 100;                                // 0.9 ちょうど
 export const 既定額 = 100;       // 金額のはじめの値
+
+/* ── お金の計算は、ここだけでする ─────────────────────
+   ⚠️⚠️ 前は画面と集計が別々に掛け算していて、四捨五入の位置が違った。
+      窓で見せる受取額（本へ×配分）と、控えに出る額（内訳×0.9）が
+      **1pt ずれることがあった。**いまは両方とも下の2つを通す。
+   ⚠️ returns.parts には**支払額そのもの**を配分して入れる（合計＝amount をルールが見ている）。
+      受取人に渡る額は、読むときに 受取人へ() で9割にする。 */
+export const 受取人へ = 額 => Math.round((額 || 0) * 受取率);
+
+export function 額の内訳(額){
+  const 決 = Math.round(額 * 決済率), 運 = Math.round(額 * 運営率);
+  return { 決, 運, 本へ: 額 - 決 - 運 };
+}
+
+/* 支払額を配分（%）で割る。端数は最初の行で吸収して、合計を必ず 額 にそろえる。
+   受取人ら は [{ id, 名 }]、配分 は { id: % }。0% の相手は入れない。
+   ⚠️ 吸収するのは配分の合計が 100% のときだけ。スライダーを動かしている途中
+      （合計が 100% でない）に吸収すると、足りない分が全部最初の人に乗って見える。 */
+export function 内訳を作る(額, 受取人ら, 配分){
+  const 行ら = 受取人ら.filter(r=>配分[r.id] > 0)
+    .map(r=>({ 受取人:r.id, 名:r.名, 額:Math.round(額 * 配分[r.id] / 100) }));
+  const 計 = 受取人ら.reduce((s,r)=>s + (配分[r.id] || 0), 0);
+  if(行ら.length && 計 === 100) 行ら[0].額 += 額 - 行ら.reduce((s,x)=>s + x.額, 0);
+  return 行ら;
+}
 export const 初回配布 = 10000;   // 登録したときに配るポイント
 export const 毎月配布 = 3000;    // 毎月配るポイント
 
@@ -68,7 +98,7 @@ export let 主体表 = new Map();   // entities。id → { 型, 名, 認証 }
       「誰が受取人か」と「何の受取人か」を1か所で持てるほうが、
       あとで本人確認を足すときに割れない。
    ⚠️ いまは誰も引き継いでいないので、②は実質ゼロ。
-      受取人の控えは①だけが見られる。
+      受取人の控え（と、本返しの完了画面にあるそこへのボタン）は、実質①だけに出る。
    ============================================================ */
 export let 権限 = { 管理者:false, 受取人:[] };
 
@@ -117,11 +147,18 @@ export function 印を引く(uid, 名のかわり){
 }
 export const 私の印 = () => 印を引く(私?.uid, 私の名());
 
+/* ⚠️⚠️ 色は style="background:${色}" に**そのまま**入る。users は本人が書く場所なので、
+      `"onclick=ログアウト()`（ちょうど16文字）のような値を入れれば、
+      しるしを押した**他人の画面で**それが動いた（2026-09-23 に塞いだ）。
+      → #と16進6桁の形のときだけ使う。ルールでも同じ形に縛ってある。 */
+const 色の形 = /^#[0-9a-fA-F]{6}$/;
+const 色として = c => typeof c === "string" && 色の形.test(c) ? c : null;
+
 export async function 名乗りらをよみこむ(){
   const s = await getDocs(collection(db, "users"));
   名乗り表 = new Map(s.docs.map(d=>{
     const x = d.data();
-    return [d.id, { 名:x.name, 印:x.mark || null, 色:x.color || null, 顔:x.photo || null }];
+    return [d.id, { 名:x.name, 印:x.mark || null, 色:色として(x.color), 顔:x.photo || null }];
   }));
   return 名乗り表;
 }
@@ -224,7 +261,7 @@ export async function 起動(認証が変わったら){
 /* ============================================================
    本と主体を読む
 
-   ⚠️ 本は books、著者と出版社は entities。**両方とも読み取りに認証が要る。**
+   ⚠️ 本は books、著者と出版社は entities。**どちらも公開読み取り**（入る前にも棚を見せるため）。
    ⚠️ 受取人は本ごとではなく**主体ごとに1つ**。だから同じ出版社が
       何冊に出てきても、受取はそこに集まる。
    ⚠️ トライアル中は、まだ引き継がれていない主体（claimed=false）にも
@@ -511,9 +548,9 @@ export async function まとめて数える(){
     const x = d.data();
     const b = 本欄(x.book); b.人数++; b.金額 += x.amount || 0;
 
-    /* 受取人に渡るのは9割。受取人の控えと同じ数え方にそろえる */
+    /* 受取人に渡るのは9割。受取人の控えと同じ 受取人へ() で数える */
     (x.parts || []).forEach(p=>{
-      const e = 主体欄(p.to); e.件数++; e.金額 += Math.round((p.amount||0) * 0.9);
+      const e = 主体欄(p.to); e.件数++; e.金額 += 受取人へ(p.amount);
     });
 
     if(x.from){
@@ -585,7 +622,7 @@ export async function 受取人の受取(受取id){
     const x = d.data();
     const 行 = (x.parts||[]).find(p=>p.to===受取id);
     return { 本:x.book, 送り主:x.anon?null:x.from, 名:x.anon?"匿名":名を引く(x.from),
-             額:Math.round((行?.amount||0)*0.9), 文:x.text||"", 時:x.at };
+             額:受取人へ(行?.amount), 文:x.text||"", 時:x.at };
   }).filter(x=>x.額>0);
   return { 明細, 合計: 明細.reduce((s,x)=>s+x.額,0) };
 }
@@ -671,7 +708,36 @@ export function Amazonのリンク(isbn13){
   const a = ISBN10にする(isbn13);
   return a ? `https://www.amazon.co.jp/dp/${a}?tag=${アソシエイトタグ}` : null;
 }
-export const 逃 = s => (s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+export const 逃 = s => String(s ?? "").replace(/[&<>"']/g,
+  c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+/* onclick などに**値を渡すときは、必ずこれを通す。**
+   ⚠️⚠️ 逃() だけでは守れない。属性の中の &#39; や &quot; は、HTML が元に戻してから
+      JavaScript に渡すので、onclick="go('books',{q:'${逃(q)}'})" に ' を含む q が来ると
+      文字列が閉じて、そこから先がスクリプトとして動く。q は URL の ?q= から来るので、
+      **細工した URL を踏ませれば何でも動かせた**（並び順の ?s= は逃がしてすらいなかった。
+      2026-09-23 に直した）。
+   → JSON の文字列にしてから逃がす。HTML が戻したあとも、正しい JS の文字列リテラルになる。
+      使い方：onclick="go('book',{id:${引数(b.id)}})" （外側に ' を付けない） */
+export const 引数 = v => 逃(JSON.stringify(String(v ?? "")));
+
+/* ============================================================
+   窓（覆い）
+   ⚠️ 前は本返し・残したい・申請・設定・管理の2つで、同じ HTML を6回書いていた。
+      組み立てはここだけ。閉じるのは 覆い閉じ()。
+   ============================================================ */
+export function 窓を出す(題, 中, 頭の下 = ""){
+  document.getElementById("窓").innerHTML = `
+  <div class="覆い" onclick="if(event.target===this)覆い閉じ()">
+    <div class="窓">
+      <div class="窓の頭"><h3>${題}</h3>
+        <button class="閉じる" onclick="覆い閉じ()">✕</button></div>
+      ${頭の下}
+      <div class="窓の中">${中}</div>
+    </div></div>`;
+}
+export const 覆い閉じ = () =>{ document.getElementById("窓").innerHTML = ""; };
+window.覆い閉じ = 覆い閉じ;
 
 export function いつ(t){
   if(!t?.seconds) return "たった今";

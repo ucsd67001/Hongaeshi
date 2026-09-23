@@ -234,8 +234,10 @@ service cloud.firestore {
         && request.resource.data.name.size() <= 24
         && request.resource.data.mark is string
         && request.resource.data.mark.size() <= 2
+        /* ⚠️⚠️ 色は画面の style にそのまま入る。長さだけ見ていたときは
+              `"onclick=ログアウト()` のような値が通った。#と16進6桁だけにする */
         && request.resource.data.color is string
-        && request.resource.data.color.size() <= 16
+        && request.resource.data.color.matches('^#[0-9a-fA-F]{6}$')
         && (request.resource.data.photo == null
             || (request.resource.data.photo is string
                 && request.resource.data.photo.size() <= 400
