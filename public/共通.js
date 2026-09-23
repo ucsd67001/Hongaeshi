@@ -158,12 +158,18 @@ export async function 名乗りらをよみこむ(){
   const s = await getDocs(collection(db, "users"));
   名乗り表 = new Map(s.docs.map(d=>{
     const x = d.data();
-    return [d.id, { 名:x.name, 印:x.mark || null, 色:色として(x.color), 顔:x.photo || null }];
+    return [d.id, { 名:x.name, 印:x.mark || null, 色:色として(x.color), 顔:x.photo || null,
+                    公開: x.profilePublic === true }];
   }));
   return 名乗り表;
 }
 
-export async function 名乗りを決める({ 名, 印, 色, 顔 }){
+/* 読書家のページを公開しているか。**本人が設定で選んだ人だけ**（既定は非公開）。
+   ⚠️⚠️ これは**見せ方の制御でしかない。**returns / keeps は公開読み取りで from（uid）を含むので、
+      非公開の人の記録も、データベースを直に読めば集められる（README「次に作るもの」）。 */
+export const 公開か = uid => !!名乗り表.get(uid)?.公開;
+
+export async function 名乗りを決める({ 名, 印, 色, 顔, 公開 }){
   if(!私) throw new Error("ログインしていません");
   const n = (名 || "").trim().slice(0, 24);
   if(!n) throw new Error("名前を入れてください");
@@ -172,9 +178,10 @@ export async function 名乗りを決める({ 名, 印, 色, 顔 }){
   /* ⚠️ 顔は「上げた画像のURL」か null。ルールで長さも見ているので、
         知らない場所のURLを入れられない（Storage の URL だけ通す）。 */
   const f = typeof 顔 === "string" && 顔.startsWith("https://") ? 顔 : null;
+  const p = 公開 === true;
   await setDoc(doc(db, "users", 私.uid),
-    { name:n, mark:m, color:c, photo:f, updatedAt:new Date().toISOString() });
-  名乗り表.set(私.uid, { 名:n, 印:m, 色:c, 顔:f });
+    { name:n, mark:m, color:c, photo:f, profilePublic:p, updatedAt:new Date().toISOString() });
+  名乗り表.set(私.uid, { 名:n, 印:m, 色:c, 顔:f, 公開:p });
   return n;
 }
 
@@ -539,49 +546,79 @@ export async function まとめて数える(){
     getDocs(query(collection(db,"keeps"), orderBy("at","desc"), limit(500)))
   ]);
 
+  /* ⚠️ 人数は**別々の人の数**（同じ人が2回返しても1人）。
+        前の 本.人数 は返しの件数だったので、ここで「人」に直した。件数は 件数 に残す */
   const 本 = {}, 主体 = {}, 人 = {};
-  const 本欄   = id => (本[id]   ||= { 人数:0, 金額:0, 残数:0, 約額:0 });
-  const 主体欄 = id => (主体[id] ||= { id, 件数:0, 金額:0 });
-  const 人欄   = id => (人[id]   ||= { id, 名:null, 件数:0, 金額:0 });
+  const 本欄   = id => (本[id]   ||= { 件数:0, 人ら:new Set(), 金額:0, ことば:0, 残数:0, 約額:0 });
+  const 主体欄 = id => (主体[id] ||= { id, 件数:0, 人ら:new Set(), 金額:0, ことば:0 });
+  const 人欄   = id => (人[id]   ||= { id, 名:null, 件数:0, 本ら:new Set(), 金額:0, ことば:0 });
+  const ことばあり = x => !!(x.text && x.text.trim());
 
   返.docs.forEach(d=>{
     const x = d.data();
-    const b = 本欄(x.book); b.人数++; b.金額 += x.amount || 0;
+    const b = 本欄(x.book); b.件数++; b.金額 += x.amount || 0;
+    if(x.from) b.人ら.add(x.from);
+    if(ことばあり(x)) b.ことば++;
 
     /* 受取人に渡るのは9割。受取人の控えと同じ 受取人へ() で数える */
     (x.parts || []).forEach(p=>{
       const e = 主体欄(p.to); e.件数++; e.金額 += 受取人へ(p.amount);
+      if(x.from) e.人ら.add(x.from);
+      if(ことばあり(x)) e.ことば++;
     });
 
     if(x.from){
       const u = 人欄(x.from); u.件数++; u.金額 += x.amount || 0;
+      u.本ら.add(x.book);
+      if(ことばあり(x)) u.ことば++;
       /* ⚠️ 匿名で送った分は名前に使わない。匿名だけの人は「匿名」のまま並ぶ */
       if(!x.anon) u.名 = 名を引く(x.from);
     }
   });
-  残.docs.forEach(d=>{ const x=d.data(); const b=本欄(x.book); b.残数++; b.約額 += x.pledge||0; });
+  残.docs.forEach(d=>{
+    const x = d.data(); const b = 本欄(x.book);
+    b.残数++; b.約額 += x.pledge || 0;
+    if(ことばあり(x)) b.ことば++;
+  });
 
-  return { 本, 主体, 人: Object.values(人) };
+  /* Set は画面へ渡さない。数にしてから返す */
+  const 数に = o => { const { 人ら, 本ら, ...残り } = o;
+    return { ...残り, ...(人ら ? { 人数:人ら.size } : {}), ...(本ら ? { 冊数:本ら.size } : {}) }; };
+  return {
+    本:   Object.fromEntries(Object.entries(本).map(([k,v])=>[k, 数に(v)])),
+    主体: Object.fromEntries(Object.entries(主体).map(([k,v])=>[k, 数に(v)])),
+    人:   Object.values(人).map(数に)
+  };
 }
 
-/* 番付。上位を何件か返すだけ。数えるのは上でやってある */
-export function 番付(数えたもの, 件数 = 3){
+/* 番付の物差し。**画面の切り替えと並べ方を、ここ1か所で決める。**
+   本・主体は「返した人数」、読書家は「返した本の冊数」を2つめの物差しにする
+   （読書家に「人数」は意味が無いので）。 */
+export const 物差しら = {
+  金額:   { 名:"金額",     本と主体:"金額",  人:"金額",   単位:{ 本と主体:"pt", 人:"pt" } },
+  広がり: { 名:"人数・冊数", 本と主体:"人数",  人:"冊数",   単位:{ 本と主体:"人", 人:"冊" } },
+  ことば: { 名:"ことば",   本と主体:"ことば", 人:"ことば", 単位:{ 本と主体:"件", 人:"件" } }
+};
+
+/* 番付。上位を何件か返すだけ。数えるのは上でやってある。
+   ⚠️ 並べるのは、選んだ物差しが 1 以上のものだけ。同じ値なら金額の多い順 */
+export function 番付(数えたもの, 件数 = 3, 物差し = "金額"){
+  const 差 = 物差しら[物差し] || 物差しら.金額;
+  const 並べる = (ら, 項) => ら.filter(x=>(x[項] || 0) > 0)
+    .sort((a,b)=>(b[項] - a[項]) || (b.金額 - a.金額)).slice(0, 件数);
   const 主体ら = Object.values(数えたもの.主体)
     .map(e=>({ ...e, 主体: 主体表.get(e.id) }))
     .filter(e=>e.主体);
-  const 上位 = (ら, 型) => ら.filter(e=>!型 || e.主体.型 === 型)
-    .sort((a,b)=>b.金額 - a.金額).slice(0, 件数);
+  const 型で = 型 => 並べる(主体ら.filter(e=>e.主体.型 === 型), 差.本と主体);
 
   return {
-    本: Object.entries(数えたもの.本)
-      .map(([id, v])=>({ id, ...v, 本: 本を引く(id) }))
-      .filter(x=>x.本 && x.金額 > 0)
-      .sort((a,b)=>b.金額 - a.金額).slice(0, 件数),
-    著者:   上位(主体ら, "author"),
-    出版社: 上位(主体ら, "publisher"),
-    書店:   上位(主体ら, "store"),
-    人: 数えたもの.人.filter(u=>u.金額 > 0)
-      .sort((a,b)=>b.金額 - a.金額).slice(0, 件数)
+    本: 並べる(Object.entries(数えたもの.本)
+      .map(([id, v])=>({ id, ...v, 本: 本を引く(id) })).filter(x=>x.本), 差.本と主体),
+    著者:   型で("author"),
+    出版社: 型で("publisher"),
+    書店:   型で("store"),
+    人: 並べる(数えたもの.人, 差.人),
+    物差し: 差
   };
 }
 
@@ -596,9 +633,11 @@ export async function 本の声(本id, 件数=40){
     .sort((a,b)=>(b.時?.seconds||0)-(a.時?.seconds||0));
 }
 
+/* ⚠️ ことばの無い返しもあるので、多めに読んでから、ことばのあるものを 件数 だけ取る。
+      前は 件数 ぶんだけ読んでから絞っていて、5件頼んでも2件しか出ないことがあった */
 export async function 最近の声(件数=6){
-  const 返 = await getDocs(query(collection(db,"returns"), orderBy("at","desc"), limit(件数)));
-  return 返.docs.map(d=>返しを直す(d.data())).filter(x=>x.文);
+  const 返 = await getDocs(query(collection(db,"returns"), orderBy("at","desc"), limit(件数 * 5)));
+  return 返.docs.map(d=>返しを直す(d.data())).filter(x=>x.文).slice(0, 件数);
 }
 
 export async function 私の記録(){
@@ -608,6 +647,20 @@ export async function 私の記録(){
     getDocs(query(collection(db,"keeps"),   where("from","==",私.uid), orderBy("at","desc"), limit(100)))
   ]);
   return [...返.docs.map(d=>返しを直す(d.data())),
+          ...残.docs.map(d=>残しを直す(d.data()))]
+    .sort((a,b)=>(b.時?.seconds||0)-(a.時?.seconds||0));
+}
+
+/* 読書家のページに出す記録。
+   ⚠️⚠️ **匿名で送った返しは入れない。**数字にも一覧にも出さない。
+      公開していない人の分は返さない（画面で出さないだけでなく、ここで止める）。 */
+export async function 読書家の記録(uid){
+  if(!公開か(uid)) return [];
+  const [返, 残] = await Promise.all([
+    getDocs(query(collection(db,"returns"), where("from","==",uid), orderBy("at","desc"), limit(200))),
+    getDocs(query(collection(db,"keeps"),   where("from","==",uid), orderBy("at","desc"), limit(200)))
+  ]);
+  return [...返.docs.map(d=>d.data()).filter(x=>!x.anon).map(返しを直す),
           ...残.docs.map(d=>残しを直す(d.data()))]
     .sort((a,b)=>(b.時?.seconds||0)-(a.時?.seconds||0));
 }

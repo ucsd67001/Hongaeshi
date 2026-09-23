@@ -36,6 +36,7 @@ function 道を読む(){
   const p = location.pathname.replace(/\/+$/,"") || "/";
   if(p.startsWith("/b/")) return { 頁:"book", id:decodeURIComponent(p.slice(3)) };
   if(p.startsWith("/e/")) return { 頁:"entity", id:decodeURIComponent(p.slice(3)) };
+  if(p.startsWith("/u/")) return { 頁:"reader", id:decodeURIComponent(p.slice(3)) };
   if(p === "/me")    return { 頁:"mine" };
   if(p === "/r")     return { 頁:"receiver" };
   if(p === "/about") return { 頁:"about" };
@@ -53,6 +54,7 @@ function go(頁, 他={}, 履歴に積む=true){
   現在 = { 頁, ...他 };
   const 道 = 頁==="book" ? "/b/"+encodeURIComponent(他.id)
            : 頁==="entity" ? "/e/"+encodeURIComponent(他.id)
+           : 頁==="reader" ? "/u/"+encodeURIComponent(他.id)
            : 頁==="mine" ? "/me"
            : 頁==="receiver" ? "/r"
            : 頁==="about" ? "/about"
@@ -114,7 +116,8 @@ async function 描く(){
   try{
     /* ⚠️ 知らない画面名は、さがすへ寄せる（前は「作る is not a function」で止まった） */
     const 作る = { home:頁_さがす, book:頁_本, mine:頁_私, receiver:頁_受取人,
-                   about:頁_しくみ, admin:頁_管理, books:頁_一覧, entity:頁_主体 }[現在.頁] || 頁_さがす;
+                   about:頁_しくみ, admin:頁_管理, books:頁_一覧, entity:頁_主体,
+                   reader:頁_読書家 }[現在.頁] || 頁_さがす;
     画面.innerHTML = await 作る();
     列を仕込む();                     // ⚠️ innerHTML を入れ替えた**あと**に呼ぶ
   }catch(e){
@@ -200,14 +203,17 @@ function 流し札(b, s){
 
 let 列の番号 = 0;
 /* ⚠️ 見出しの右に「すべて見る」を置く。NetflixやPrime Videoと同じ場所。
-      列は一部しか見せないので、全部への出口が無いと行き止まりになる。 */
+      列は一部しか見せないので、全部への出口が無いと行き止まりになる。
+   ⚠️ ただし「すべて見る」の先は本の一覧**全体**。主体や読書家の列のように、
+      その列の本だけを並べる先が無いときは 並び に false を渡して出さない。 */
 function 流れる列(見出し, 添え, 本ら, 表, 並び){
   if(!本ら.length) return "";
   const 名 = "列" + (++列の番号);
   return `<section class="節">
     <div class="列の頭">
       <h2>${見出し}</h2><p class="添え">${添え}</p>
-      <a class="すべて" onclick="go('books',${並び?`{並び:${引数(並び)}}`:"{}"})">すべて見る →</a>
+      ${並び === false ? ""
+        : `<a class="すべて" onclick="go('books',${並び?`{並び:${引数(並び)}}`:"{}"})">すべて見る →</a>`}
       <div class="矢たち">
         <button class="矢" onclick="列を送る(${引数(名)},-1)" aria-label="左へ">‹</button>
         <button class="矢" onclick="列を送る(${引数(名)},1)" aria-label="右へ">›</button>
@@ -218,7 +224,7 @@ function 流れる列(見出し, 添え, 本ら, 表, 並び){
 }
 
 const 声の行 = (v, 本を出す=false) => `<div class="声">
-  <div class="素性"><b>${名と印(v.送り主, v.表示名||"読者", v.匿)}</b>
+  <div class="素性"><b>${読書家の名(v.送り主, v.表示名||"読者", v.匿)}</b>
     ${本を出す?`<a onclick="go('book',{id:${引数(v.本)}})">『${逃(本を引く(v.本)?.題||v.本)}』</a>`:""}
     ${v.種==="返し" ? `<span class="金">${pt(v.額)}</span>`
                    : `<span class="札 注">残したい${v.約?" "+pt(v.約):""}</span>`}
@@ -237,6 +243,15 @@ const 申請リンク = () => `<a onclick="${土台.私 ? "申請を始める()"
 function 名と印(uid, 表示名, 匿){
   if(匿) return `<span class="名と印"><span class="印 匿">匿</span>匿名</span>`;
   return `<span class="名と印">${しるし(土台.印を引く(uid, 表示名))}${逃(表示名)}</span>`;
+}
+
+/* 読書家の名前。**ページを公開している人だけ**押せる（読書家のページへ）。
+   ⚠️ 匿名の行では押せない。名前が無い（匿名でしか送っていない）人も「匿名」のまま */
+function 読書家の名(uid, 表示名, 匿){
+  if(匿 || !表示名) return 名と印(uid, "匿名", true);
+  const 名 = 名と印(uid, 表示名, false);
+  return 土台.公開か(uid)
+    ? `<a class="読書家へ" onclick="go('reader',{id:${引数(uid)}})">${名}</a>` : 名;
 }
 
 /* 顔があれば画像、無ければ1文字。**必ずどちらかが出る。**
@@ -361,29 +376,49 @@ const 番付の段 = (題, 行ら, 空の言葉) => `
       <span class="名">${r.印HTML ? r.印HTML : r.押せる
         ? `<a onclick="go('${r.先頁}',{id:${引数(r.先id)}})">${逃(r.名)}</a>`
         : 逃(r.名)}</span>
-      <span class="額">${r.金額.toLocaleString()}<i>pt</i></span>
+      <span class="額">${r.値.toLocaleString()}<i>${r.単位}</i></span>
     </li>`).join("")}</ol>`
     : `<p class="節の注" style="margin:10px 0 0">${空の言葉}</p>`}
   </div>`;
 
-function 番付たち(順){
+/* ⚠️ 物差しは「金額」だけにしない（2026-09-23）。ポイントは誰にでも 10,000pt 配られるので、
+      金額の差は熱量より手持ちの差を映しがち。人数・冊数とことばの数でも並べられるようにした */
+function 番付たち(順, 物差し = "金額"){
   if(!順) return "";
-  const 主体行 = ら => ら.map(e=>({ 名:e.主体.名, 金額:e.金額, 押せる:true,
+  const 差 = 順.物差し;
+  const 本と主体 = x => ({ 値:x[差.本と主体] || 0, 単位:差.単位.本と主体 });
+  const 主体行 = ら => ら.map(e=>({ 名:e.主体.名, ...本と主体(e), 押せる:true,
                                    先頁:"entity", 先id:e.id }));
   return `
-  <section class="節">
-    ${節の頭("いま、推されているもの", "返された分の多い順")}
+  <section class="節" id="番付の節">
+    <div class="節の頭">
+      <h2 class="節見出し">いま、推されているもの</h2>
+      <div class="物差したち" role="group" aria-label="並べ方">
+        ${Object.entries(土台.物差しら).map(([k, v])=>`<button class="釦 ${k===物差し?'':'枠だけ'} 小"
+          aria-pressed="${k===物差し}" onclick="番付の物差し(${引数(k)})">${v.名}</button>`).join("")}
+      </div>
+    </div>
     <div class="番付たち">
-      ${番付の段("本", 順.本.map(b=>({ 名:b.本.題, 金額:b.金額, 押せる:true,
+      ${番付の段("本", 順.本.map(b=>({ 名:b.本.題, ...本と主体(b), 押せる:true,
                                       先頁:"book", 先id:b.id })), "まだありません")}
       ${番付の段("著者", 主体行(順.著者), "まだありません")}
       ${番付の段("出版社", 主体行(順.出版社), "まだありません")}
-      ${番付の段("よく返している人",
-          順.人.map(u=>({ 名:u.名 || "匿名", 金額:u.金額, 押せる:false,
-                          印HTML: 名と印(u.id, u.名 || "匿名", !u.名) })), "まだありません")}
+      ${番付の段("熱心な読書家",
+          順.人.map(u=>({ 値:u[差.人] || 0, 単位:差.単位.人,
+                          印HTML: 読書家の名(u.id, u.名) })), "まだありません")}
     </div>
   </section>`;
 }
+/* 並べ方を変える。URL には積まない（トップの見え方の好みなので）。
+   ⚠️ 描く() で全体を描き直すと、いったん「読み込んでいます」に替わって
+      スクロール位置が上へ飛ぶ。数え直しも要らないので、番付の節だけ差し替える */
+let 最後の数 = null;
+window.番付の物差し = k =>{
+  現在.物差し = k;
+  const 節 = document.getElementById("番付の節");
+  if(節 && 最後の数) 節.outerHTML = 番付たち(土台.番付(最後の数, 3, k), k);
+  else 描く();
+};
 
 /* ============================================================
    頁：主体（著者・出版社・書店）
@@ -417,7 +452,7 @@ async function 頁_主体(){
     </div>
   </section>
 
-  ${流れる列("この相手の本", `${本ら.length}冊`, 本ら)}
+  ${流れる列("この相手の本", `${本ら.length}冊`, 本ら, null, false)}
 
   <section class="節">
     ${節の頭("読者からの声", 声あり.length + "件")}
@@ -449,7 +484,8 @@ async function 頁_さがす(){
     まとめて数える(), 全体の集計(), 最近の声(5)
   ]);
   const 表 = 数.本;
-  const 順 = 番付(数, 3);
+  最後の数 = 数;
+  const 順 = 番付(数, 3, 現在.物差し);
   const 一覧 = q ? 土台.蔵書.filter(b=>(b.題+b.著+b.版元).includes(q)) : 土台.蔵書;
 
   return `
@@ -485,7 +521,16 @@ async function 頁_さがす(){
             <p class="節の注" style="margin:0 0 16px">見つかりませんでした。</p>
             ${申請ボタン()}</div>`}</div>
   </section>` : `
-  ${番付たち(順)}
+  ${番付たち(順, 現在.物差し)}
+  ${/* ⚠️ 声は番付のすぐ下（2026-09-23）。いまの価値は「誰が何を推しているか」が見えることで、
+       その中身がいちばん伝わるのが声。前はページのいちばん下にあった */ ""}
+  <section class="節">
+    ${節の頭("最近、届いた声", "購買データでは取れない、読後の言葉")}
+    <div class="声の列">
+      ${新着.length ? 新着.map(v=>声の行(v,true)).join("")
+        : '<p class="節の注" style="padding:20px 0">まだありません。最初の1件を書いてみてください。</p>'}
+    </div>
+  </section>
   ${/* 「ありがとうが集まっている本」の流れる列は外した（2026-09-23）。
        すぐ上の番付と中身が重なり、冊数が少ないと同じ本が繰り返し流れて見えたため */ ""}
   ${流れる列("新しく入った本", "直近に登録された30冊",
@@ -494,16 +539,7 @@ async function 頁_さがす(){
   <section class="節" style="padding-top:44px">
     <a class="釦 枠だけ" onclick="go('books')">本の一覧をぜんぶ見る（${土台.蔵書.length}冊）</a>
   </section>
-  ${入ってる ? "" : 入るとこうなる()}`}
-
-  ${q?"":`
-  <section class="節">
-    ${節の頭("最近、届いた声", "購買データでは取れない、読後の言葉")}
-    <div class="声の列">
-      ${新着.length ? 新着.map(v=>声の行(v,true)).join("")
-        : '<p class="節の注" style="padding:20px 0">まだありません。最初の1件を書いてみてください。</p>'}
-    </div>
-  </section>`}`;
+  ${入ってる ? "" : 入るとこうなる()}`}`;
 }
 
 /* ============================================================
@@ -1048,7 +1084,8 @@ let 設定中 = { 送信中:false };
 
 window.設定をひらく = ()=>{
   const 私の = 土台.私の印();
-  設定中 = { 名:土台.私の名(), 印:私の.印, 色:私の.色, 顔:私の.顔, 送信中:false, 支度中:false };
+  設定中 = { 名:土台.私の名(), 印:私の.印, 色:私の.色, 顔:私の.顔,
+            公開:土台.公開か(土台.私?.uid), 送信中:false, 支度中:false };
   設定描く();
 };
 
@@ -1098,6 +1135,18 @@ function 設定描く(){
         </div>
         ${設定中.顔 ? `<p class="節の注">画像を選んでいるあいだは、字と色は出ません。</p>` : ""}
 
+        <p class="名札" style="margin-top:22px">自分のページ</p>
+        <label style="display:flex;align-items:center;gap:10px;margin-top:6px;
+          font-family:var(--ゴシック);font-size:12.5px;color:var(--字);cursor:pointer">
+          <input type="checkbox" id="設定の公開" ${設定中.公開?"checked":""}
+            onchange="設定の公開(this.checked)"> 自分のページを公開する
+        </label>
+        <p class="節の注" style="margin-top:6px">
+          公開すると、番付や声の名前から、あなたのページへ飛べるようになります。
+          名前を出して届けた本返しと、残したい本のことばが並びます。
+          <b>匿名で届けた分は出ません。</b>
+          <br>公開しなくても、本のページに出ている声はこれまでどおり見えます。</p>
+
         <button class="釦 全幅" style="margin-top:22px" ${設定中.送信中||設定中.支度中?"disabled":""}
           onclick="名乗りを保存()">${設定中.送信中?"保存しています…":"これにする"}</button>
 
@@ -1124,6 +1173,7 @@ window.設定の字 = 値 =>{
   if(e && e.tagName === "SPAN") e.textContent = 設定中.印 || [...(設定中.名 || "読")][0] || "読";
 };
 window.設定の色 = 値 =>{ 設定中.色 = 値; 設定描く(); };
+window.設定の公開 = 値 =>{ 設定中.公開 = !!値; };   // ⚠️ 描き直さない（名前の欄の打ちかけを消さないため）
 
 /* ⚠️ ここでは**上げるだけで、users にはまだ書かない。**
       「これにする」を押さずに閉じた人の画像は、どこからも見えないまま残る。
@@ -1147,9 +1197,11 @@ window.名乗りを保存 = async ()=>{
   if(!名){ 知らせる("名前を入れてください", true); return; }
   /* ⚠️ 欄の値は、打ったあと描き直していないことがある。**DOMから読み直す。** */
   const 印 = document.getElementById("設定の印")?.value.trim() || 設定中.印 || "";
+  const 公開欄 = document.getElementById("設定の公開");
+  if(公開欄) 設定中.公開 = 公開欄.checked;
   設定中.名 = 名; 設定中.印 = 印; 設定中.送信中 = true; 設定描く();
   try{
-    await 土台.名乗りを決める({ 名, 印, 色:設定中.色, 顔:設定中.顔 });
+    await 土台.名乗りを決める({ 名, 印, 色:設定中.色, 顔:設定中.顔, 公開:設定中.公開 });
     覆い閉じ(); 知らせる("変えました");
     描く();
   }catch(e){
@@ -1172,7 +1224,10 @@ async function 頁_私(){
   <section class="幕">
     <p class="英字の札">My returns</p>
     <h1 class="大見出し" style="font-size:clamp(25px,3.2vw,34px)">わたしの本返し</h1>
-    <p class="導き">あなたが本の世界へ返したもの。</p>
+    <p class="導き">あなたが本の世界へ返したもの。
+      ${土台.公開か(土台.私.uid)
+        ? `<a onclick="go('reader',{id:${引数(土台.私.uid)}})">公開しているあなたのページを見る</a>`
+        : `<a onclick="設定をひらく()">設定で、自分のページを公開できます</a>`}</p>
     <div class="数字たち">
       ${数字("Count", 返し.length, "返した回数")}
       ${数字("Paid", 合計.toLocaleString(), "使ったポイント", true)}
@@ -1193,6 +1248,65 @@ async function 頁_私(){
         <td style="color:var(--字のごく薄い);white-space:nowrap">${いつ(r.時)}</td></tr>`}).join("")
       : '<tr><td colspan="5" style="color:var(--字のごく薄い)">まだ記録がありません。本をさがして、返してみてください。</td></tr>'}
     </table></div>
+  </section>`;
+}
+
+/* ============================================================
+   頁：読書家（/u/<uid>）
+
+   ⚠️ いまの本返しの価値は「誰が何を推しているか」が見えること（README）。
+      本・著者・出版社にはページがあるのに、推している人にだけ無かった。
+   ⚠️⚠️ **本人が設定で公開を選んだ人だけ。**既定は非公開。
+      匿名で送った分は、数字にも一覧にも入れない（共通.js の 読書家の記録）。
+   ============================================================ */
+async function 頁_読書家(){
+  const uid = 現在.id;
+  const 自分 = 土台.私?.uid === uid;
+  if(!土台.公開か(uid)) return `<div class="節"><div class="断り" style="margin-top:40px">
+    ${自分
+      ? `あなたのページは、まだ公開していません。<br>
+         設定の「自分のページを公開する」を選ぶと、ここに推している本とことばが並びます。
+         <button class="釦 枠だけ 小" style="margin-left:12px" onclick="設定をひらく()">設定をひらく</button>`
+      : `この人は、ページを公開していません。
+         <button class="釦 枠だけ 小" style="margin-left:12px" onclick="go('home')">さがすへ</button>`}
+    </div></div>`;
+
+  const 行 = await 土台.読書家の記録(uid);
+  const 返し = 行.filter(x=>x.種==="返し");
+  const 本ら = [...new Set(行.map(x=>x.本))].map(本を引く).filter(Boolean);
+  const ことば = 行.filter(x=>x.文);
+  const 名 = 土台.名を引く(uid);
+
+  return `
+  <section class="幕">
+    <p class="英字の札">Reader</p>
+    <div style="display:flex;align-items:center;gap:16px">
+      ${しるし(土台.印を引く(uid, 名), "大")}
+      <h1 class="大見出し" style="font-size:clamp(25px,3.2vw,34px);margin:0">${逃(名)}</h1>
+    </div>
+    <p class="導き">${自分 ? "あなたのページです。" : ""}名前を出して届けた本返しと、残したい本のことば。
+      匿名で届けた分は出ていません。</p>
+    <div class="数字たち">
+      ${数字("Count", 返し.length, "本返しした回数")}
+      ${数字("Books", 本ら.length, "推している本")}
+      ${数字("Voices", ことば.length, "書いたことば")}
+      ${数字("Paid", 返し.reduce((s,x)=>s+x.額,0).toLocaleString(), "返したポイント", true)}
+    </div>
+  </section>
+
+  ${流れる列("推している本", `${本ら.length}冊`, 本ら, null, false)}
+
+  <section class="節">
+    ${節の頭("ことば", ことば.length + "件")}
+    <div class="声の列">
+      ${ことば.length ? ことば.map(v=>`<div class="声">
+        <div class="素性"><a onclick="go('book',{id:${引数(v.本)}})">『${逃(本を引く(v.本)?.題 || v.本)}』</a>
+          ${v.種==="返し" ? `<span class="金">${pt(v.額)}</span>`
+                         : `<span class="札 注">残したい${v.約 ? " " + pt(v.約) : ""}</span>`}
+          <span>${いつ(v.時)}</span></div>
+        <p>${逃(v.文)}</p></div>`).join("")
+        : '<p class="節の注" style="padding:20px 0">まだありません。</p>'}
+    </div>
   </section>`;
 }
 
@@ -1368,6 +1482,9 @@ async function 頁_しくみ(){
         ただし、試用の管理のために、誰が送ったかの記録は残ります。</p>
       <p style="margin:0 0 18px"><b>表示する名前は、あとから変えられます。</b>
         記録に名前を焼き付けていないので、変えると過去に送った分も新しい名前になります。</p>
+      <p style="margin:0 0 18px"><b>自分のページは、選んだ人にだけ作られます。</b>
+        設定で公開を選ぶと、名前を出して届けた本返しとことばが一つのページに並び、
+        番付や声の名前から飛べるようになります。匿名で届けた分は出ません。</p>
       <p style="margin:0"><b>本返しの収入について。</b>
         運営の5%のほかに、本のページの「Amazonで見る」は広告リンクです。
         そこから本が買われると、本返しに紹介料が入ります。本の値段は変わりません。</p>

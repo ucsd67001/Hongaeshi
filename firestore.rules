@@ -228,7 +228,10 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if true;
       allow write: if isMe(uid)
-        && request.resource.data.keys().hasOnly(['name','mark','color','photo','updatedAt'])
+        && request.resource.data.keys().hasOnly(['name','mark','color','photo','profilePublic','updatedAt'])
+        /* 読書家のページを公開するか（本人が選ぶ。無ければ非公開） */
+        && (!('profilePublic' in request.resource.data)
+            || request.resource.data.profilePublic is bool)
         && request.resource.data.name is string
         && request.resource.data.name.size() >= 1
         && request.resource.data.name.size() <= 24

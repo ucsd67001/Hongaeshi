@@ -100,6 +100,10 @@ img{max-width:100%;display:block}
 
 /* ── 看板 ─────────────────────────────────
    ⚠️ 絵の中に題字がある。**見出しを重ねて書かない。** */
+/* ⚠️ 100vw は縦スクロールバーの幅を含む。Windows のようにスクロールバーが場所を取る環境では、
+      その分だけ横にはみ出して、トップが横にも動いていた（2026-09-23 に直した）。
+      html で横のはみ出しを切る。clip は hidden と違ってスクロールの箱を作らないので、sticky を壊さない */
+html{overflow-x:clip}
 .看板{margin:0 calc(50% - 50vw) 0;width:100vw;overflow:hidden;
   border-bottom:1px solid var(--罫);background:var(--地の奥)}
 .看板 img{width:100%;height:auto;max-height:min(46vh,380px);object-fit:cover;object-position:center 42%}
@@ -118,6 +122,13 @@ h2.節見出し{font-size:18px;font-weight:600;letter-spacing:.09em;margin:0}
   padding-bottom:11px;border-bottom:1px solid var(--字);margin-bottom:0}
 .節の添え{font-family:var(--ゴシック);color:var(--字のごく薄い);font-size:11.5px;
   letter-spacing:.06em;margin:0;margin-left:auto;white-space:nowrap}
+/* 公開している読書家の名前。しるしごと押せる。色は藤にして「押せる」ことだけ伝える */
+a.読書家へ{color:var(--灯の濃い)}
+a.読書家へ .名と印{color:inherit}
+
+/* 番付の並べ方。見出しの右に寄せ、狭い画面では見出しの下へ折り返す */
+.節の頭:has(.物差したち){flex-wrap:wrap;align-items:center;row-gap:10px}
+.物差したち{display:flex;gap:6px;margin-left:auto;flex-wrap:wrap}
 .節の注{font-family:var(--ゴシック);color:var(--字のごく薄い);font-size:12px;
   letter-spacing:.03em;margin:12px 0 0}
 
