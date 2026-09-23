@@ -4,6 +4,12 @@
      node 04_tools/Amazonリンクを入れる.mjs --下見 <URL> [<URL> …]
      node 04_tools/Amazonリンクを入れる.mjs <URL> [<URL> …]
      node 04_tools/Amazonリンクを入れる.mjs --本 <ISBN13> "<URL>|<ラベル>" …
+     node 04_tools/Amazonリンクを入れる.mjs --新規 <URL> …   ← 棚に無ければ登録もする
+
+   ⚠️ **--新規 を付けると、リンクから本の登録まで通る。**
+      ASIN → ISBN → openBD で書誌を引いて、本と主体を作り、リンクを付ける。
+      リンクを並べて渡すだけで棚が増やせる。ページ数と表紙は
+      そのあと 表紙をつける.mjs で入る。
 
    ⚠️⚠️ **1冊に複数のリンクを持てる。**作品は1つでも、Amazonでは
       版や巻で分かれていることがある。『二十歳のころ』は、棚にあるのが
@@ -34,6 +40,8 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { initializeApp, cert } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
+import { openBDで引く, 著者をばらす, 読める名に, 主体のid, 出版社キー, 著者キー }
+  from "./書誌.mjs";
 const 実行 = promisify(execFile);
 
 export const アソシエイトタグ = "ucsd67001-22";
@@ -63,9 +71,62 @@ async function 辿る(url){
 
 const 引数 = process.argv.slice(2);
 const 下見 = 引数.includes("--下見");
+const 新規 = 引数.includes("--新規");
 const 本指定 = 引数.includes("--本") ? 引数[引数.indexOf("--本") + 1] : null;
 const リンクら = 引数.filter((x,i)=>
-  x !== "--下見" && x !== "--本" && !(本指定 && i === 引数.indexOf("--本") + 1));
+  x !== "--下見" && x !== "--新規" && x !== "--本"
+  && !(本指定 && i === 引数.indexOf("--本") + 1));
+
+/* ⚠️ openBD に無い本がある（文庫の一部など）。Google Books を控えにする。
+      GOOGLE_BOOKS_KEY が無ければ控えは使わない（鍵なしだと 429）。 */
+async function GoogleBooksで引く(isbn){
+  const 鍵 = process.env.GOOGLE_BOOKS_KEY;
+  if(!鍵) return null;
+  try{
+    const r = await fetch(`https://www.googleapis.com/books/v1/volumes`
+      + `?q=isbn:${isbn}&country=JP&key=${鍵}`);
+    if(!r.ok) return null;
+    const v = (await r.json()).items?.[0]?.volumeInfo;
+    if(!v?.title) return null;
+    return { 出典:"GoogleBooks", isbn, 題: v.subtitle ? `${v.title} : ${v.subtitle}` : v.title,
+             著: (v.authors || []).join("  "),      // ⚠️ 2つ空きで区切る（著者をばらす の想定）
+             版元: v.publisher || null, 年: (v.publishedDate || "").slice(0,4) };
+  }catch(e){ return null; }
+}
+
+/* 書誌から本の中身を組み立てる。--新規 のときだけ使う */
+const 新しい主体 = new Map();
+async function 本をこしらえる(isbn, 正URL, ラベル){
+  const o = (await openBDで引く(isbn)) || (await GoogleBooksで引く(isbn));
+  if(!o?.題) return null;
+  const [題, ...副] = String(o.題).split(/\s*:\s*/);
+  /* ⚠️ 書誌の著者欄には訳者や「ほか」が混ざる。主体になりえない語は落とす */
+  const 除ける = /^(ほか|他|編集部|著者不明)$/;
+  const 著者名ら = 著者をばらす(o.著).filter(a=>a.役 === "著")
+    .map(a=>読める名に(a.名)).filter(n=>n && !除ける.test(n));
+
+  const 受取 = [];
+  const 足す = (type, 名)=>{
+    if(!名) return;
+    const id = 主体のid(type, 名);
+    if(受取.includes(id)) return;
+    受取.push(id);
+    新しい主体.set(id, { id, type, name:名,
+      key: type==="publisher" ? 出版社キー(名) : 著者キー(名) });
+  };
+  著者名ら.forEach(n=>足す("author", n));
+  足す("publisher", o.版元);
+
+  return {
+    isbn, title:題, subtitle: 副.join(" : ") || null,
+    authorText: 著者名ら.join("、"), publisherText: o.版元 || null,
+    year: Number(o.年) || null, pubDate:null, pages:null,
+    cover:null, coverAlt:null,
+    amazonLinks: [{ label: ラベル || "", url: 正URL }],
+    to: 受取, status:"流通",
+    addedBy:"admin", addedAt:new Date().toISOString(), public:true
+  };
+}
 if(!リンクら.length){
   console.log("使い方: node 04_tools/Amazonリンクを入れる.mjs [--下見] <AmazonのURL> …");
   process.exit(1);
@@ -80,6 +141,7 @@ const 蔵書 = new Map((await db.collection("books").get()).docs.map(d=>[d.id, d
 console.log(`棚には ${蔵書.size}冊。${リンクら.length}本のリンクを見ます。\n`);
 
 const 直す = [];
+const 作る本 = [];          // --新規 のときに貯める
 const 束ねる = [];          // --本 のときに貯める
 for(const 生 of リンクら){
   const [もと, ラベル] = 生.split("|");
@@ -105,8 +167,19 @@ for(const 生 of リンクら){
 
   const 本 = isbn ? 蔵書.get(isbn) : null;
   if(!isbn){ console.log(`      × ASIN ${asin} は ISBN ではありません（Kindle版など）\n`); continue; }
+
+  /* ⚠️ --新規 なら、棚に無い本はその場で書誌を引いて登録する */
+  if(!本 && 新規){
+    const 中身 = await 本をこしらえる(isbn, 正, ラベル);
+    if(!中身){ console.log(`      × ISBN ${isbn} の書誌が openBD にありません\n`); continue; }
+    console.log(`      ＋ ${中身.title}${中身.subtitle ? " : " + 中身.subtitle : ""}`);
+    console.log(`        ${中身.authorText || "（著者なし）"} ／ ${中身.publisherText} ／ ${中身.year}`);
+    console.log(`        ISBN ${isbn}   届け先 ${中身.to.join("  ")}\n`);
+    作る本.push({ id: isbn, 中身 });
+    continue;
+  }
   if(!本){   console.log(`      × ISBN ${isbn} は棚にありません。`
-    + `--本 <ISBN13> を付ければ、別の本に束ねられます\n`); continue; }
+    + `--新規 を付ければ登録もします\n`); continue; }
 
   console.log(`      ◎ ${本.title}`);
   console.log(`        ASIN ${asin} → ISBN ${isbn}`);
@@ -117,13 +190,20 @@ for(const 生 of リンクら){
 if(本指定 && 束ねる.length)
   直す.push({ id: 本指定, links: 束ねる, 題: 蔵書.get(本指定)?.title });
 
-console.log(`紐づける本：${直す.length} / ${リンクら.length}`);
+console.log(`紐づける本：${直す.length}　新しく登録：${作る本.length} / ${リンクら.length}`);
 if(下見){ console.log("（下見なので、何も書いていません）"); process.exit(0); }
-if(!直す.length) process.exit(0);
+if(!直す.length && !作る本.length) process.exit(0);
 
 /* ⚠️ 単数の amazonUrl は消して、配列の amazonLinks に一本化する。
       両方あると、どちらを見るかで食い違う。 */
 const 束 = db.batch();
+/* ⚠️ merge:true。すでにある主体の claimed を壊さない */
+for(const [, e] of 新しい主体)
+  束.set(db.collection("entities").doc(e.id),
+    { type:e.type, name:e.name, key:e.key, aliases:[e.name],
+      claimed:false, claimedBy:null, detail:{}, updatedAt:new Date().toISOString() },
+    { merge:true });
+作る本.forEach(x=>束.set(db.collection("books").doc(x.id), x.中身, { merge:true }));
 直す.forEach(x=>束.update(db.collection("books").doc(x.id),
   { amazonLinks: x.links, amazonUrl: null }));
 await 束.commit();
