@@ -801,7 +801,9 @@ function 返し描く(自由に){
         <b style="color:var(--朱);font-family:var(--明朝);font-size:15px">${本へ.toLocaleString()}pt</b> が本の世界へ渡ります<br>
         残り ${(土台.財布?.残高??0).toLocaleString()}pt</p>
       <button class="釦 全幅" style="margin-top:26px" onclick="覆い閉じ();location.reload()">本のページへ戻る</button>
-      <button class="釦 枠だけ 全幅" style="margin-top:10px" onclick="覆い閉じ();go('receiver')">受取人の控えを見る</button>
+      ${/* ⚠️ 控えは①管理者と②受取人しか開けない。③利用者に出すと行き止まりになる（帯と同じ条件） */
+        土台.権限.管理者 || 土台.権限.受取人.length
+        ? `<button class="釦 枠だけ 全幅" style="margin-top:10px" onclick="覆い閉じ();go('receiver')">受取人の控えを見る</button>` : ""}
     </div>`;
   }
 
