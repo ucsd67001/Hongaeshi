@@ -13,7 +13,7 @@ import * as 土台 from "./共通.js";
 import { 頁_管理 } from "./管理.js";
 const {
   起動, 入る, 出る, 本返しする, 残したい,
-  本の集計, 全体の集計, 一覧用の集計, 本の声, 最近の声, 私の記録, 受取人の受取,
+  本の集計, 全体の集計, まとめて数える, 番付, 本の声, 最近の声, 私の記録, 受取人の受取,
   本を引く, 届け先, pt, 逃, いつ, 知らせる,
   決済率, 運営率, 既定額
 } = 土台;
@@ -31,6 +31,7 @@ let 現在 = { 頁:"home" };
 function 道を読む(){
   const p = location.pathname.replace(/\/+$/,"") || "/";
   if(p.startsWith("/b/")) return { 頁:"book", id:decodeURIComponent(p.slice(3)) };
+  if(p.startsWith("/e/")) return { 頁:"entity", id:decodeURIComponent(p.slice(3)) };
   if(p === "/me")    return { 頁:"mine" };
   if(p === "/r")     return { 頁:"receiver" };
   if(p === "/about") return { 頁:"about" };
@@ -43,6 +44,7 @@ function 道を読む(){
 function go(頁, 他={}, 履歴に積む=true){
   現在 = { 頁, ...他 };
   const 道 = 頁==="book" ? "/b/"+encodeURIComponent(他.id)
+           : 頁==="entity" ? "/e/"+encodeURIComponent(他.id)
            : 頁==="mine" ? "/me"
            : 頁==="receiver" ? "/r"
            : 頁==="about" ? "/about"
@@ -100,7 +102,7 @@ async function 描く(){
   画面.innerHTML = 読込中();
   try{
     const 作る = { home:頁_さがす, book:頁_本, mine:頁_私, receiver:頁_受取人,
-                   about:頁_しくみ, admin:頁_管理, books:頁_一覧 }[現在.頁];
+                   about:頁_しくみ, admin:頁_管理, books:頁_一覧, entity:頁_主体 }[現在.頁];
     画面.innerHTML = await 作る();
     列を仕込む();                     // ⚠️ innerHTML を入れ替えた**あと**に呼ぶ
   }catch(e){
@@ -299,6 +301,92 @@ function 列を仕込む(){
   }
 }
 
+
+/* ── 番付 ─────────────────────────────────
+   ⚠️ 追加のクエリを投げていない。トップで既に全件を1回読んでいるので、
+      本ごと・主体ごと・人ごとを**同じ読み込みから**出している（共通.js）。
+   ⚠️ 人の並びは、**匿名で送った分を名前に使わない。**
+      匿名でしか送っていない人は「匿名」のまま並ぶ。 */
+const 番付の段 = (題, 行ら, 空の言葉) => `
+  <div class="番付">
+    <h3>${題}</h3>
+    ${行ら.length ? `<ol>${行ら.map(r=>`<li>
+      <span class="名">${r.押せる
+        ? `<a onclick="go('${r.先頁}',{id:'${逃(r.先id)}'})">${逃(r.名)}</a>`
+        : 逃(r.名)}</span>
+      <span class="額">${r.金額.toLocaleString()}<i>pt</i></span>
+    </li>`).join("")}</ol>`
+    : `<p class="節の注" style="margin:10px 0 0">${空の言葉}</p>`}
+  </div>`;
+
+function 番付たち(順){
+  if(!順) return "";
+  const 主体行 = ら => ら.map(e=>({ 名:e.主体.名, 金額:e.金額, 押せる:true,
+                                   先頁:"entity", 先id:e.id }));
+  return `
+  <section class="節">
+    ${節の頭("いま、推されているもの", "返された分の多い順")}
+    <div class="番付たち">
+      ${番付の段("本", 順.本.map(b=>({ 名:b.本.題, 金額:b.金額, 押せる:true,
+                                      先頁:"book", 先id:b.id })), "まだありません")}
+      ${番付の段("著者", 主体行(順.著者), "まだありません")}
+      ${番付の段("出版社", 主体行(順.出版社), "まだありません")}
+      ${番付の段("よく返している人",
+          順.人.map(u=>({ 名:u.名 || "匿名", 金額:u.金額, 押せる:false })), "まだありません")}
+    </div>
+  </section>`;
+}
+
+/* ============================================================
+   頁：主体（著者・出版社・書店）
+
+   ⚠️ 番付から押した先。ここが無いと番付が行き止まりになる。
+   ⚠️ 受け取った額と声は returns を読むので**認証が要る。**
+      本の一覧だけなら未ログインでも出せるので、そこは出す。
+   ============================================================ */
+async function 頁_主体(){
+  const e = 土台.主体表.get(現在.id);
+  if(!e) return `<div class="節"><div class="断り">その相手は見つかりませんでした。
+    <button class="釦 枠だけ 小" style="margin-left:10px" onclick="go('home')">さがすへ</button></div></div>`;
+
+  const 入ってる = !!土台.私;
+  const 本ら = 土台.蔵書.filter(b=>b.受取.some(r=>r.id === 現在.id));
+  const { 明細, 合計 } = 入ってる ? await 受取人の受取(現在.id) : { 明細:[], 合計:0 };
+  const 声あり = 明細.filter(x=>x.文);
+
+  return `
+  <section class="幕">
+    <p class="英字の札">${e.型 === "author" ? "Author" : e.型 === "publisher" ? "Publisher" : "Store"}</p>
+    <h1 class="大見出し" style="font-size:clamp(26px,3.6vw,38px)">${逃(e.名)}</h1>
+    <p class="導き">${逃(土台.種の名[e.型] || e.型)}　${本ら.length}冊
+      ${e.認証 ? '<span class="札 済">認証済</span>' : '<span class="札 藤">引き継ぎ待ち</span>'}</p>
+    ${e.認証 ? "" : `<div class="断り" style="margin-top:20px;max-width:58ch">
+      このページは、まだ本人・関係者に引き継がれていません。
+      届いた本返しと読者の声は、引き継がれた時点でお渡しします。</div>`}
+    ${入ってる ? `<div class="数字たち">
+      ${数字("Received", 合計.toLocaleString(), "受け取った分（支払額の90%・pt）", true)}
+      ${数字("Thanks", 明細.length, "届いた本返し")}
+      ${数字("Books", 本ら.length, "この相手の本")}
+    </div>` : ""}
+  </section>
+
+  ${流れる列("この相手の本", `${本ら.length}冊`, 本ら)}
+
+  <section class="節">
+    ${節の頭("読者からの声", 入ってる ? 声あり.length + "件" : "")}
+    <div class="声の列">
+      ${!入ってる
+        ? `<p class="節の注" style="padding:20px 0">読者のことばは、入ってから読めます。
+             <button class="釦 枠だけ 小" style="margin-left:10px" onclick="ログイン()">Googleで入る</button></p>`
+        : 声あり.length ? 声あり.map(i=>`<div class="声">
+            <div class="素性"><b>『${逃(本を引く(i.本)?.題 || i.本)}』</b>
+              <span class="金">${pt(i.額)}</span><span>${いつ(i.時)}</span></div>
+            <p>${逃(i.文)}</p></div>`).join("")
+        : '<p class="節の注" style="padding:20px 0">まだありません。</p>'}
+    </div>
+  </section>`;
+}
+
 /* ============================================================
    頁：さがす
    ============================================================ */
@@ -308,9 +396,11 @@ async function 頁_さがす(){
         リンクを共有されたときに入口しか見えないのは、参加してもらう上で損。 */
   const 入ってる = !!土台.私;
   const q = (現在.q||"").trim();
-  const [表, 全体, 新着] = 入ってる
-    ? await Promise.all([一覧用の集計(), 全体の集計(), 最近の声(5)])
-    : [{}, null, []];
+  const [数, 全体, 新着] = 入ってる
+    ? await Promise.all([まとめて数える(), 全体の集計(), 最近の声(5)])
+    : [null, null, []];
+  const 表 = 数?.本 || {};
+  const 順 = 数 ? 番付(数, 3) : null;
   const 一覧 = q ? 土台.蔵書.filter(b=>(b.題+b.著+b.版元).includes(q)) : 土台.蔵書;
 
   return `
@@ -344,6 +434,7 @@ async function 頁_さがす(){
             <p class="節の注" style="margin:0 0 16px">見つかりませんでした。</p>
             ${申請ボタン()}</div>`}</div>
   </section>` : `
+  ${番付たち(順)}
   ${流れる列("ありがとうが集まっている本", "返された分の多い順",
       [...土台.蔵書].filter(b=>表[b.id]?.金額)
         .sort((a,b)=>(表[b.id]?.金額||0)-(表[a.id]?.金額||0)), 表, "額")}
@@ -378,7 +469,7 @@ async function 頁_一覧(){
   /* ⚠️ 集計は returns/keeps を読むので**認証が要る。**
         本そのものは公開しているのだから、一覧も未ログインで見られるべき。
         入っていないときは金額を出さないだけにする。 */
-  const 表 = 土台.私 ? await 一覧用の集計() : {};
+  const 表 = 土台.私 ? (await まとめて数える()).本 : {};
 
   let 本ら = [...土台.蔵書];
   if(q) 本ら = 本ら.filter(b=>(b.題 + b.著 + b.版元 + (b.副題||"")).includes(q));
@@ -536,7 +627,8 @@ async function 頁_本(){
         <div class="受取の行">
           <div class="顔">${逃(r.種[0])}</div>
           <div style="flex:1;min-width:0">
-            <div style="font-size:14.5px;font-weight:600;letter-spacing:.03em">${逃(r.名)}</div>
+            <div style="font-size:14.5px;font-weight:600;letter-spacing:.03em">
+              <a onclick="go('entity',{id:'${逃(r.id)}'})">${逃(r.名)}</a></div>
             <div class="本の素性" style="margin-top:2px">${逃(r.種)}</div>
           </div>
           ${r.認証 ? '<span class="札 済">認証済</span>' : '<span class="札 藤">引き継ぎ待ち</span>'}

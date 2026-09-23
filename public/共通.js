@@ -121,7 +121,7 @@ export async function 起動(認証が変わったら){
       「どの本に使うか」という肝心のふるまいが観察できなくなるため。
       **本物のお金にするときは、ここを閉じること。**
    ============================================================ */
-const 種の名 = { author:"著者・権利者", publisher:"出版社", store:"書店" };
+export const 種の名 = { author:"著者・権利者", publisher:"出版社", store:"書店" };
 
 /* 書影が無い本のための色。題から決めるので、いつも同じ色になる。
    ⚠️ **必ず16進で返すこと。**画面側で `${色}cc` と足して薄い側を作っているので、
@@ -371,20 +371,65 @@ export async function 全体の集計(){
   return { 人数: 返.data().人数, 金額: 返.data().総額 || 0, 残数: 残.data().人数 };
 }
 
-/* 一覧に出す本ぶんの集計。
-   ⚠️ 本ごとに集計クエリを投げると、9冊で18往復になって遅い。
-      一覧では**まとめて2回**読んで、手元で本ごとに振り分ける。
-      トライアルの件数（数百件）ならこちらのほうが速いし安い。 */
-export async function 一覧用の集計(){
+/* まとめて数える ― 本ごと・主体ごと・人ごとを、**一度の読み込みで**出す。
+
+   ⚠️ 本ごとに集計クエリを投げると往復が増えて遅い。まとめて2回読んで、
+      手元で振り分ける。トライアルの件数（数百件）ならこちらのほうが速いし安い。
+   ⚠️ **主体ごとと人ごとも、同じ読み込みから出せる。**
+      番付のために別のクエリを足さないこと。
+
+   ⚠️ 人ごとの表示名は、**匿名で送った分を使わない。**
+      匿名でしか送っていない人は「匿名」のまま並ぶ。
+      金額はどちらも数える（本のページでは既に公開されている情報なので）。 */
+export async function まとめて数える(){
   const [返, 残] = await Promise.all([
     getDocs(query(collection(db,"returns"), orderBy("at","desc"), limit(500))),
     getDocs(query(collection(db,"keeps"), orderBy("at","desc"), limit(500)))
   ]);
-  const 表 = {};
-  const 欄 = id => (表[id] ||= { 人数:0, 金額:0, 残数:0, 約額:0 });
-  返.docs.forEach(d=>{ const x=d.data(); const e=欄(x.book); e.人数++; e.金額 += x.amount||0; });
-  残.docs.forEach(d=>{ const x=d.data(); const e=欄(x.book); e.残数++; e.約額 += x.pledge||0; });
-  return 表;
+
+  const 本 = {}, 主体 = {}, 人 = {};
+  const 本欄   = id => (本[id]   ||= { 人数:0, 金額:0, 残数:0, 約額:0 });
+  const 主体欄 = id => (主体[id] ||= { id, 件数:0, 金額:0 });
+  const 人欄   = id => (人[id]   ||= { id, 名:null, 件数:0, 金額:0 });
+
+  返.docs.forEach(d=>{
+    const x = d.data();
+    const b = 本欄(x.book); b.人数++; b.金額 += x.amount || 0;
+
+    /* 受取人に渡るのは9割。受取人の控えと同じ数え方にそろえる */
+    (x.parts || []).forEach(p=>{
+      const e = 主体欄(p.to); e.件数++; e.金額 += Math.round((p.amount||0) * 0.9);
+    });
+
+    if(x.from){
+      const u = 人欄(x.from); u.件数++; u.金額 += x.amount || 0;
+      if(!x.anon && x.name) u.名 = x.name;       // ⚠️ 匿名の分は名前に使わない
+    }
+  });
+  残.docs.forEach(d=>{ const x=d.data(); const b=本欄(x.book); b.残数++; b.約額 += x.pledge||0; });
+
+  return { 本, 主体, 人: Object.values(人) };
+}
+
+/* 番付。上位を何件か返すだけ。数えるのは上でやってある */
+export function 番付(数えたもの, 件数 = 3){
+  const 主体ら = Object.values(数えたもの.主体)
+    .map(e=>({ ...e, 主体: 主体表.get(e.id) }))
+    .filter(e=>e.主体);
+  const 上位 = (ら, 型) => ら.filter(e=>!型 || e.主体.型 === 型)
+    .sort((a,b)=>b.金額 - a.金額).slice(0, 件数);
+
+  return {
+    本: Object.entries(数えたもの.本)
+      .map(([id, v])=>({ id, ...v, 本: 本を引く(id) }))
+      .filter(x=>x.本 && x.金額 > 0)
+      .sort((a,b)=>b.金額 - a.金額).slice(0, 件数),
+    著者:   上位(主体ら, "author"),
+    出版社: 上位(主体ら, "publisher"),
+    書店:   上位(主体ら, "store"),
+    人: 数えたもの.人.filter(u=>u.金額 > 0)
+      .sort((a,b)=>b.金額 - a.金額).slice(0, 件数)
+  };
 }
 
 export async function 本の声(本id, 件数=40){
