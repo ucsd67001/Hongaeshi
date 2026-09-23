@@ -54,7 +54,7 @@ export async function 頁_管理(){
   <section class="幕" style="padding-bottom:0">
     <p class="英字の札">Admin</p>
     <h1 class="大見出し" style="font-size:clamp(25px,3.2vw,34px)">管理</h1>
-    <p class="導き">${逃(土台.私.displayName || "")} として入っています。</p>
+    <p class="導き">${逃(土台.私の名())} として入っています。</p>
     <div style="display:flex;gap:8px;margin-top:22px;flex-wrap:wrap">
       ${["本","主体","申請"].map(k=>
         `<button class="釦 ${見ている===k?'':'枠だけ'} 小" onclick="管理の頁('${k}')">${k}</button>`).join("")}
