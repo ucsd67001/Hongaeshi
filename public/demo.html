@@ -377,7 +377,7 @@ const 逃 = s => (s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;
 function 本の札(b){
   const s = 集計(b);
   const 下 = b.状態==="絶版"
-    ? `<span class="札 注">絶版</span> <b>${s.残数.toLocaleString()}</b>人が「残したい」`
+    ? `<span class="札 注">絶版</span> <b>${s.残数.toLocaleString()}</b>人が「復刊を願う」`
     : `<b>${s.人数.toLocaleString()}</b>人の本返し ／ ${円(s.金額)}`;
   return `<button class="本の札" onclick="go('book',{id:'${b.id}'})">
     <div class="書影" style="background:linear-gradient(150deg,${b.色},${b.色}cc)">${b.題}</div>
@@ -432,7 +432,7 @@ function 頁_さがす(){
         <div class="素性"><b style="color:var(--字の薄い)">${逃(v.名)}</b>
           <span>→</span>
           <a style="cursor:pointer" onclick="go('book',{id:'${v.b.id}'})">${v.b.題}</a>
-          ${v.額>0?`<span class="金">${円(v.額)}</span>`:`<span class="札 注">残したい${v.約?" "+円(v.約):""}</span>`}
+          ${v.額>0?`<span class="金">${円(v.額)}</span>`:`<span class="札 注">復刊を願う${v.約?" "+円(v.約):""}</span>`}
           <span>${v.日===0?"たった今":v.日+"日前"}</span></div>
         <p>${逃(v.文)}</p></div>`).join("")}
     </div>
@@ -464,8 +464,8 @@ function 頁_本(){
       <div style="margin-top:20px;display:flex;gap:9px;flex-wrap:wrap">
         ${受.length
           ? `<button class="釦" onclick="返し始め('${b.id}')">この本に本返しする</button>
-             <button class="釦 枠だけ" onclick="残し始め('${b.id}')">残したい</button>`
-          : `<button class="釦 藤" onclick="残し始め('${b.id}')">この本を残したい</button>`}
+             <button class="釦 枠だけ" onclick="残し始め('${b.id}')">復刊を願う</button>`
+          : `<button class="釦 藤" onclick="残し始め('${b.id}')">復刊を願う</button>`}
       </div>
       ${受.length?"":`<div class="断り" style="margin-top:16px">
         この本には、まだ受取人が登録されていません。<b>いまはお金を受け取りません。</b>
@@ -477,7 +477,7 @@ function 頁_本(){
     <div class="板 数字 静か"><div class="名">Thanks</div><div class="値">${s.人数.toLocaleString()}</div><div class="添え">本返しした人</div></div>
     <div class="板 数字 静か"><div class="名">Returned</div><div class="値" style="color:var(--朱)">${円(s.金額)}</div><div class="添え">この本から返った額</div></div>
     <div class="板 数字 静か"><div class="名">Voices</div><div class="値">${s.声数.toLocaleString()}</div><div class="添え">読後のメッセージ</div></div>
-    <div class="板 数字 静か"><div class="名">Keep</div><div class="値">${s.残数.toLocaleString()}</div><div class="添え">${s.約額?`残したい（${円(s.約額)}の意思）`:"残したい"}</div></div>
+    <div class="板 数字 静か"><div class="名">Keep</div><div class="値">${s.残数.toLocaleString()}</div><div class="添え">${s.約額?`復刊を願う（${円(s.約額)}の意思）`:"復刊を願う"}</div></div>
   </div>
 
   <section class="節">
@@ -651,7 +651,7 @@ function 残し描く(){
       <button class="釦 全幅" style="margin-top:20px" onclick="覆い閉じ();描く()">閉じる</button>
     </div>` : `
     <p style="margin:0 0 4px;font-size:13px;color:var(--字の薄い)">
-      『${b.題}』を残したい気持ちを記録します。<b style="color:var(--灯の濃い)">いまは課金されません。</b></p>
+      『${b.題}』の復刊を願う気持ちを記録します。<b style="color:var(--灯の濃い)">いまは課金されません。</b></p>
     <label class="名札">もし復刊・電子化されたら、いくら払ってもいいですか</label>
     <div class="金額たち">
       ${[0,500,1000,2000,3000,5000].map(v=>
@@ -663,12 +663,12 @@ function 残し描く(){
     <div class="断り 藤" style="margin-top:15px">
       これは支払いの約束ではなく、<b>需要のしるし</b>です。集まった額は「これだけの読者が待っている」として、
       出版社・権利者に示されます。</div>
-    <button class="釦 藤 全幅" style="margin-top:17px" onclick="残し確定()">残したい気持ちを記録する</button>`;
+    <button class="釦 藤 全幅" style="margin-top:17px" onclick="残し確定()">復刊を願う</button>`;
 
   document.getElementById("窓").innerHTML = `
   <div class="覆い" onclick="if(event.target===this)覆い閉じ()">
     <div class="窓 めぐる">
-      <div class="窓の頭"><h3>${K.済?"":"この本を残したい"}</h3>
+      <div class="窓の頭"><h3>${K.済?"":"この本の復刊を願う"}</h3>
         <button class="閉じる" onclick="覆い閉じ()">×</button></div>
       <div class="窓の中">${中}</div>
     </div></div>`;
@@ -713,7 +713,7 @@ function 頁_私(){
       <div class="板 数字"><div class="名">Count</div><div class="値">${状態.返し.length}</div><div class="添え">返した回数</div></div>
       <div class="板 数字"><div class="名">Paid</div><div class="値" style="color:var(--朱)">${円(合計)}</div><div class="添え">支払った額</div></div>
       <div class="板 数字"><div class="名">Delivered</div><div class="値">${円(純)}</div><div class="添え">本の世界へ届いた額</div></div>
-      <div class="板 数字"><div class="名">Keep</div><div class="値">${状態.残し.length}</div><div class="添え">残したい本</div></div>
+      <div class="板 数字"><div class="名">Keep</div><div class="値">${状態.残し.length}</div><div class="添え">復刊を願う本</div></div>
     </div>
   </section>
 
@@ -724,7 +724,7 @@ function 頁_私(){
       <tr><th>本</th><th>種類</th><th class="右">額</th><th>ことば</th></tr>
       ${行.length ? 行.map(r=>{const b=本(r.本);return `<tr>
         <td><a style="cursor:pointer" onclick="go('book',{id:'${b.id}'})">${b.題}</a></td>
-        <td>${r.種==="返し"?'<span class="札 済">本返し</span>':'<span class="札 注">残したい</span>'}</td>
+        <td>${r.種==="返し"?'<span class="札 済">本返し</span>':'<span class="札 注">復刊を願う</span>'}</td>
         <td class="右">${r.種==="返し"?円(r.額):(r.約?円(r.約)+"の意思":"―")}</td>
         <td style="font-size:12.5px;color:var(--字の薄い)">${逃(r.文)||"―"}</td></tr>`}).join("")
       : '<tr><td colspan="4" style="color:var(--字のごく薄い);font-size:13px">まだ記録がありません。本をさがして、返してみてください。</td></tr>'}
@@ -788,7 +788,7 @@ function 頁_受取人(){
     </div>
     <div class="断り 藤" style="margin-top:16px">
       <b>この画面が、本返しのいちばんの資産です。</b>
-      「1,000人が復刊希望を押した」より、「1,000人が合計72万円出してでも残したいと言っている」のほうが、
+      「1,000人が復刊希望を押した」より、「1,000人が合計72万円出してでも復刊を願っている」のほうが、
       出版社にとって意思決定できるしるしになります。</div>
   </section>`;
 }
@@ -837,7 +837,7 @@ function 頁_しくみ(){
       <div class="板"><div class="番">02</div><h4>応援する <span class="札 注">準備中</span></h4>
         <p>本ではなく、人・出版社・書店そのものへ。いまは準備中です。
           本返しは、本を通して届けることをいちばん大事にしています。</p></div>
-      <div class="板"><div class="番">03</div><h4>残したい</h4>
+      <div class="板"><div class="番">03</div><h4>復刊を願う</h4>
         <p>絶版・希少本へ。お金は動かさず、「復刊したら払う額」を意思として貯めます。</p></div>
     </div>
   </section>

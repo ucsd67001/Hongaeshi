@@ -103,12 +103,20 @@ window.本を直す = id=>{
     <input class="欄" id="直す版元" value="${逃(b.版元)}">
     <label class="名札">刊行年</label>
     <input class="欄" id="直す年" inputmode="numeric" value="${b.年||""}">
+    <label class="名札">いまの状態</label>
+    <select class="欄" id="直す状態">
+      <option value="流通" ${b.状態!=="絶版"?"selected":""}>流通中（買える）</option>
+      <option value="絶版" ${b.状態==="絶版"?"selected":""}>絶版・品切れ（「復刊を願う」が出る）</option>
+    </select>
     <label class="名札">表紙のURL（手で入れる。自動取得より優先されます）</label>
-    <input class="欄" id="直す書影" value="${逃(b.書影||"")}"
-      placeholder="https://… 画像の直リンク">
-    <label class="名札">Amazonのリンク（売れそうな本にだけ）</label>
+    ${/* ⚠️ 前は b.書影（自動の表紙も混ざった、いま出ている表紙）を入れていて、
+          そのまま「直す」を押すと自動の表紙が「手で入れた表紙」として保存された */ ""}
+    <input class="欄" id="直す書影" value="${逃(b.手の書影||"")}"
+      placeholder="https://… 画像の直リンク（空なら自動）">
+    <label class="名札">Amazonのリンク（1本目）</label>
+    ${/* ⚠️ 前は b.Amazon（存在しない項目）を読んでいて、リンクがある本でも空に見えた */ ""}
     <div style="display:flex;gap:10px;align-items:flex-end">
-      <input class="欄" id="直すAmazon" value="${逃(b.Amazon||"")}" placeholder="空なら出しません">
+      <input class="欄" id="直すAmazon" value="${逃(b.Amazonら[0]?.url||"")}" placeholder="空なら出しません">
       <button class="釦 枠だけ 小" style="white-space:nowrap"
         onclick="Amazonを作る(${引数(b.isbn)})">ISBNから作る</button>
     </div>
@@ -124,6 +132,14 @@ window.本を直す = id=>{
 
 window.本を直す確定 = async id=>{
   const 取 = x => document.getElementById(x)?.value.trim() || "";
+  const b = 土台.本を引く(id);
+  /* リンクは amazonLinks の1本目だけ差し替える。2本目以降（上下巻など）は残す。
+     ⚠️ 前は amazonUrl（古い形）に書いていて、読む側は amazonLinks を優先するので効いていなかった */
+  const url = 取("直すAmazon");
+  const 残りのリンク = (b?.Amazonら || []).slice(1);
+  const amazonLinks = url
+    ? [{ label: b?.Amazonら[0]?.label || "", url }, ...残りのリンク]
+    : 残りのリンク;
   try{
     await updateDoc(doc(土台.db, "books", id), {
       title: 取("直す題"),
@@ -131,8 +147,9 @@ window.本を直す確定 = async id=>{
       authorText: 取("直す著"),
       publisherText: 取("直す版元"),
       year: Number(取("直す年")) || null,
+      status: 取("直す状態") === "絶版" ? "絶版" : "流通",
       coverManual: 取("直す書影") || null,
-      amazonUrl: 取("直すAmazon") || null
+      amazonLinks, amazonUrl: null
     });
     閉じる(); 知らせる("直しました");
     await 土台.蔵書をよみこむ(); window.描き直す();

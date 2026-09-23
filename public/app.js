@@ -170,7 +170,7 @@ const 版元と年 = b => 逃(b.版元) + (b.年 ? `（${b.年}）` : "");
 function 本の札(b, s){
   s = s || { 人数:0, 金額:0, 残数:0, 約額:0 };
   const 右 = b.状態==="絶版"
-    ? `<b>${s.残数.toLocaleString()}</b><span class="添え">人が残したい</span>`
+    ? `<b>${s.残数.toLocaleString()}</b><span class="添え">人が復刊を願う</span>`
     : `<b>${pt(s.金額).replace("pt","")}</b><span class="添え">pt ／ ${s.人数.toLocaleString()}人</span>`;
   return `<button class="本の札" onclick="go('book',{id:${引数(b.id)}})">
     <div class="書影" style="background:linear-gradient(155deg,${b.色},${b.色}bb)">
@@ -221,7 +221,7 @@ window.表紙をやめる = el =>{
 function 流し札(b, s){
   s = s || { 人数:0, 金額:0, 残数:0 };
   const 下 = b.状態==="絶版"
-    ? (s.残数 ? `<div class="額">${s.残数}<span>人が残したい</span></div>` : "")
+    ? (s.残数 ? `<div class="額">${s.残数}<span>人が復刊を願う</span></div>` : "")
     : (s.金額 ? `<div class="額">${s.金額.toLocaleString()}<span>PT</span></div>` : "");
   return `<button class="流し札" onclick="go('book',{id:${引数(b.id)}})">
     <div class="表紙" style="background:linear-gradient(155deg,${b.色},${b.色}cc)">
@@ -265,7 +265,7 @@ const 声の行 = (v, 本を出す=false) => `<div class="声">
     <span>${いつ(v.時)}${v.直した ? `（${いつ(v.直した)}に直した）` : ""}</span></div>
   <p>${逃(v.文)}</p></div>`;
 const 声の札 = v => v.種==="返し" ? `<span class="金">${pt(v.額)}</span>`
-                 : v.種==="残し" ? `<span class="札 注">残したい${v.約?" "+pt(v.約):""}</span>` : "";
+                 : v.種==="残し" ? `<span class="札 注">復刊を願う${v.約?" "+pt(v.約):""}</span>` : "";
 
 /* 登録申請への導線。
    ⚠️ 前は一覧の一番下にしか無くて、**見つけられなかった。**
@@ -571,7 +571,7 @@ async function 頁_さがす(){
     <div class="数字たち">
       ${数字("Thanks", 全体.人数.toLocaleString(), "これまでの本返し")}
       ${数字("Returned", pt(全体.金額).replace("pt",""), "本の世界へ届いた分（pt）", true)}
-      ${数字("Keep", 全体.残数.toLocaleString(), "残したい")}
+      ${数字("Revive", 全体.残数.toLocaleString(), "復刊を願う")}
       ${入ってる
         ? 数字("Wallet", (土台.財布?.残高??0).toLocaleString(), "あなたの残高（pt）")
         : 数字("Books", 土台.蔵書.length, "棚にある本")}
@@ -751,22 +751,25 @@ async function 頁_本(){
         ${受.length?"":'<span class="札 注">届け先なし</span>'}
       </div>
       <div style="margin-top:26px;display:flex;gap:10px;flex-wrap:wrap">
-        ${!入ってる
-          ? (受.length ? `<button class="釦 朱" onclick="ログイン()">入って本返しする</button>`
-                       : `<button class="釦 藤" onclick="ログイン()">入って残したい</button>`)
-          : 受.length
-          ? `<button class="釦 朱" onclick="返し始め(${引数(b.id)})">この本に本返しする</button>
-             <button class="釦 枠だけ" onclick="残し始め(${引数(b.id)})">残したい</button>`
-          : `<button class="釦 藤" onclick="残し始め(${引数(b.id)})">この本を残したい</button>`}
+        ${/* ⚠️ 「復刊を願う」は**絶版の本だけ**（2026-09-24）。前は「残したい」の名で流通中の本にも出ていて、
+              「今買える本を残すとは？」と意味が伝わらなかった。流通中の本は本返しとことばで推せる */ ""}
+        ${受.length ? (入ってる
+          ? `<button class="釦 朱" onclick="返し始め(${引数(b.id)})">この本に本返しする</button>`
+          : `<button class="釦 朱" onclick="ログイン()">入って本返しする</button>`) : ""}
+        ${b.状態==="絶版" ? (入ってる
+          ? `<button class="釦 ${受.length?'枠だけ':'藤'}" onclick="残し始め(${引数(b.id)})">復刊を願う</button>`
+          : `<button class="釦 ${受.length?'枠だけ':'藤'}" onclick="ログイン()">入って復刊を願う</button>`) : ""}
         ${ことばの釦}
       </div>
+      ${b.状態==="絶版" ? `<p class="節の注" style="margin-top:10px">
+        「復刊を願う」はポイントを動かしません。復刊したら払いたい額を記録し、出版社に示します。</p>` : ""}
       ${b.Amazonら.length ? `<p style="margin-top:18px;display:flex;gap:9px;align-items:center;flex-wrap:wrap">
         ${b.Amazonら.map(a=>`<a href="${逃(a.url)}" target="_blank" rel="noopener sponsored nofollow"
            class="外へ">Amazonで見る${a.label?`　${逃(a.label)}`:""}</a>`).join("")}
         <span class="節の注" style="display:inline;margin:0">広告リンクです</span></p>` : ""}
       ${受.length?"":`<div class="断り" style="margin-top:22px">
         この本には、まだ受取人が登録されていません。<b>ポイントも受け取りません。</b>
-        気持ちと「復刊したら払いたい額」だけを記録します。</div>`}
+        ことば${b.状態==="絶版" ? "と「復刊したら払いたい額」" : ""}だけを記録します。</div>`}
     </div>
   </div>
 
@@ -774,7 +777,7 @@ async function 頁_本(){
     ${数字("Thanks", s.人数.toLocaleString(), "本返しした人")}
     ${数字("Returned", pt(s.金額).replace("pt",""), "この本から返った分（pt）", true)}
     ${数字("Voices", 声たち.length.toLocaleString(), "読後のことば")}
-    ${数字("Keep", s.残数.toLocaleString(), s.約額?`残したい（${pt(s.約額)}の意思）`:"残したい")}
+    ${数字("Revive", s.残数.toLocaleString(), s.約額?`復刊を願う（${pt(s.約額)}の意思）`:"復刊を願う")}
   </div>
 
   <section class="節">
@@ -1036,7 +1039,9 @@ window.返し確定 = async ()=>{
 };
 
 /* ============================================================
-   覆い：残したい（ポイントは動かない）
+   覆い：復刊を願う（ポイントは動かない）
+   ⚠️ 画面での名前は「復刊を願う」（2026-09-24 に「残したい」から改めた）。
+      記録は今までどおり keeps、関数も 残したい / 残し始め のまま（中の名前は変えていない）
    ============================================================ */
 let K = {};
 window.残し始め = async id=>{
@@ -1055,7 +1060,7 @@ function 残し描く(){
       <p class="節の注" style="margin:0">この記録は本のページに残り、<br>権利者が引き継いだときに見られます。</p>
       <button class="釦 全幅" style="margin-top:26px" onclick="覆い閉じ();location.reload()">閉じる</button>
     </div>` : `
-    <p class="節の注" style="margin:0">『${逃(b.題)}』を残したい気持ちを記録します。
+    <p class="節の注" style="margin:0">『${逃(b.題)}』の復刊を願う気持ちを記録します。
       <b style="color:var(--字)">ポイントは減りません。</b></p>
     <p class="名札">復刊・電子化されたら、いくら払ってもいいですか</p>
     <div class="金額たち" style="margin-top:8px">
@@ -1072,9 +1077,9 @@ function 残し描く(){
       これは支払いの約束ではなく、<b>需要のしるし</b>です。集まった額は「これだけの読者が待っている」として、
       出版社・権利者に示されます。</div>
     <button class="釦 藤 全幅" style="margin-top:22px" ${K.送信中?"disabled":""} onclick="残し確定()">
-      ${K.送信中?"記録しています…":"残したい気持ちを記録する"}</button>`;
+      ${K.送信中?"記録しています…":"復刊を願う"}</button>`;
 
-  窓を出す(K.済 ? "" : "この本を残したい", 中);
+  窓を出す(K.済 ? "" : "この本の復刊を願う", 中);
 }
 
 window.残し確定 = async ()=>{
@@ -1297,7 +1302,7 @@ function 設定描く(){
         </label>
         <p class="節の注" style="margin-top:6px">
           公開すると、番付や声の名前から、あなたのページへ飛べるようになります。
-          名前を出して届けた本返しと、残したい本のことばが並びます。
+          名前を出して届けた本返しと、ことばが並びます。
           <b>匿名で届けた分は出ません。</b>
           <br>公開しなくても、本のページに出ている声はこれまでどおり見えます。</p>
 
@@ -1401,7 +1406,7 @@ async function 頁_私(){
       ${行.length ? 行.map(r=>{const b=本を引く(r.本);return `<tr>
         <td class="本"><a onclick="go('book',{id:${引数(r.本)}})">${逃(b?.題||r.本)}</a></td>
         <td>${r.種==="返し" ? '<span class="札 済">本返し</span>'
-            : r.種==="残し" ? '<span class="札 注">残したい</span>'
+            : r.種==="残し" ? '<span class="札 注">復刊を願う</span>'
             : `<span class="札 藤">ことば</span>${r.匿 ? '<span class="節の注" style="display:inline;margin-left:6px">匿名</span>' : ""}`}</td>
         <td class="右">${r.種==="返し" ? r.額.toLocaleString()
             : r.種==="残し" ? (r.約 ? r.約.toLocaleString()+"の意思" : "―") : "―"}</td>
@@ -1557,7 +1562,7 @@ async function 頁_受取人(){
     </div>
     <div class="断り 藤" style="margin-top:28px">
       <b>この画面が、本返しのいちばんの資産です。</b>
-      「1,000人が復刊希望を押した」より、「1,000人が合計72万円出してでも残したいと言っている」のほうが、
+      「1,000人が復刊希望を押した」より、「1,000人が合計72万円出してでも復刊を願っている」のほうが、
       出版社にとって意思決定できるしるしになります。</div>
   </section>`;
 }
@@ -1621,8 +1626,8 @@ async function 頁_しくみ(){
       <div><div class="番">02</div><h4>応援する <span class="札 注">準備中</span></h4>
         <p>本ではなく、人・出版社・書店そのものへ。いまは準備中です。
           本返しは、本を通して届けることをいちばん大事にしています。</p></div>
-      <div><div class="番">03</div><h4>残したい</h4>
-        <p>絶版・希少本へ。ポイントは動かさず、「復刊したら払う額」を意思として貯めます。</p></div>
+      <div><div class="番">03</div><h4>復刊を願う</h4>
+        <p>絶版・品切れの本へ。ポイントは動かさず、「復刊したら払う額」を意思として貯め、出版社に示します。</p></div>
     </div>
   </section>
 
