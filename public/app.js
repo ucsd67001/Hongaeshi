@@ -506,10 +506,10 @@ async function 頁_さがす(){
 async function 頁_一覧(){
   const q = (現在.q || "").trim();
   const 並び = 現在.並び || "年";
-  /* ⚠️ 集計は returns/keeps を読むので**認証が要る。**
-        本そのものは公開しているのだから、一覧も未ログインで見られるべき。
-        入っていないときは金額を出さないだけにする。 */
-  const 表 = 土台.私 ? (await まとめて数える()).本 : {};
+  /* ⚠️ returns / keeps は公開読み取り。**入っていなくても数える。**
+        前は入っている人だけ数えていて、未ログインだと「返された分」の並べ替えが
+        全冊 0pt になっていた（2026-09-23 に直した。トップの番付と同じ作りにそろえた） */
+  const 表 = (await まとめて数える()).本;
 
   let 本ら = [...土台.蔵書];
   if(q) 本ら = 本ら.filter(b=>(b.題 + b.著 + b.版元 + (b.副題||"")).includes(q));
@@ -636,7 +636,8 @@ async function 頁_本(){
       </div>
       <div style="margin-top:26px;display:flex;gap:10px;flex-wrap:wrap">
         ${!入ってる
-          ? `<button class="釦 朱" onclick="ログイン()">入って本返しする</button>`
+          ? (受.length ? `<button class="釦 朱" onclick="ログイン()">入って本返しする</button>`
+                       : `<button class="釦 藤" onclick="ログイン()">入って残したい</button>`)
           : 受.length
           ? `<button class="釦 朱" onclick="返し始め('${b.id}')">この本に本返しする</button>
              <button class="釦 枠だけ" onclick="残し始め('${b.id}')">残したい</button>`
@@ -865,7 +866,7 @@ function 残し描く(){
   const 中 = K.済 ? `<div class="終い">
       <div class="印">📖</div>
       <h3 style="font-size:19px;margin:16px 0 10px;font-weight:600;letter-spacing:.09em">意思を記録しました</h3>
-      <p class="節の注" style="margin:0">権利者がこのページを引き継いだら、お知らせします。</p>
+      <p class="節の注" style="margin:0">この記録は本のページに残り、<br>権利者が引き継いだときに見られます。</p>
       <button class="釦 全幅" style="margin-top:26px" onclick="覆い閉じ();location.reload()">閉じる</button>
     </div>` : `
     <p class="節の注" style="margin:0">『${逃(b.題)}』を残したい気持ちを記録します。
@@ -969,7 +970,7 @@ function 申請描く(欄を保つ){
 
     <div class="断り" style="margin-top:20px">
       そのまま受け取って、こちらで書誌を確かめてから並べます。
-      **書名だけでは機械が別の本を掴む**ので、著者名と出版社名もお願いしています。</div>
+      <b>書名だけでは機械が別の本を掴む</b>ので、著者名と出版社名もお願いしています。</div>
     <button class="釦 全幅" style="margin-top:20px" ${S.送信中?"disabled":""} onclick="申請を出す()">
       ${S.送信中?"送っています…":"申請する"}</button>`;
 
