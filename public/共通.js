@@ -605,19 +605,21 @@ export async function 主体へのことば(主体id){
    ⚠️ カウンタの書き込みを持たない。必要なときに集計クエリで数える。
       件数が増えたら、ここだけを集計ドキュメントに置き換えればよい。
    ============================================================ */
+/* 本1冊の集計。
+   ⚠️⚠️ **人数は別々の人の数**（同じ人が2回返しても1人）。前は集計クエリの count() で
+      返しの**件数**を数えていて、番付・一覧の「人数」（まとめて数える）と食い違った（2026-09-25 にそろえた）。
+      集計クエリでは「別々の人」を数えられないので、その本の記録を読んで手元で数える。
+      1冊ぶんなら件数は知れている。 */
 export async function 本の集計(本id){
   const [返, 残] = await Promise.all([
-    getAggregateFromServer(
-      query(collection(db,"returns"), where("book","==",本id)),
-      { 人数: count(), 総額: sum("amount") }),
-    getAggregateFromServer(
-      query(collection(db,"keeps"), where("book","==",本id)),
-      { 人数: count(), 総約: sum("pledge") })
+    getDocs(query(collection(db,"returns"), where("book","==",本id))),
+    getDocs(query(collection(db,"keeps"),   where("book","==",本id)))
   ]);
-  return {
-    人数: 返.data().人数, 金額: 返.data().総額 || 0,
-    残数: 残.data().人数, 約額: 残.data().総約 || 0
-  };
+  const 人ら = new Set(), 願う人ら = new Set();
+  let 金額 = 0, 約額 = 0;
+  返.docs.forEach(d=>{ const x = d.data(); if(x.from) 人ら.add(x.from); 金額 += x.amount || 0; });
+  残.docs.forEach(d=>{ const x = d.data(); if(x.from) 願う人ら.add(x.from); 約額 += x.pledge || 0; });
+  return { 人数: 人ら.size, 金額, 残数: 願う人ら.size, 約額 };
 }
 
 export async function 全体の集計(){
@@ -650,7 +652,7 @@ export async function まとめて数える(){
   /* ⚠️ 人数は**別々の人の数**（同じ人が2回返しても1人）。
         前の 本.人数 は返しの件数だったので、ここで「人」に直した。件数は 件数 に残す */
   const 本 = {}, 主体 = {}, 人 = {};
-  const 本欄   = id => (本[id]   ||= { 件数:0, 人ら:new Set(), 金額:0, ことば:0, 残数:0, 約額:0 });
+  const 本欄   = id => (本[id]   ||= { 件数:0, 人ら:new Set(), 金額:0, ことば:0, 願う人ら:new Set(), 約額:0 });
   const 主体欄 = id => (主体[id] ||= { id, 件数:0, 人ら:new Set(), 金額:0, ことば:0 });
   const 人欄   = id => (人[id]   ||= { id, 名:null, 件数:0, 金額:0, ことば:0, 登録:0 });
 
@@ -673,7 +675,7 @@ export async function まとめて数える(){
   });
   残.docs.forEach(d=>{
     const x = d.data(); const b = 本欄(x.book);
-    b.残数++; b.約額 += x.pledge || 0;
+    if(x.from) b.願う人ら.add(x.from); b.約額 += x.pledge || 0;   // ⚠️ 残数も別々の人の数
   });
 
   /* ことばは voices から数える（1冊に1人1つなので、数＝書いた人の数）。
@@ -693,8 +695,8 @@ export async function まとめて数える(){
   });
 
   /* Set は画面へ渡さない。数にしてから返す */
-  const 数に = o => { const { 人ら, ...残り } = o;
-    return { ...残り, ...(人ら ? { 人数:人ら.size } : {}) }; };
+  const 数に = o => { const { 人ら, 願う人ら, ...残り } = o;
+    return { ...残り, ...(人ら ? { 人数:人ら.size } : {}), ...(願う人ら ? { 残数:願う人ら.size } : {}) }; };
   return {
     本:   Object.fromEntries(Object.entries(本).map(([k,v])=>[k, 数に(v)])),
     主体: Object.fromEntries(Object.entries(主体).map(([k,v])=>[k, 数に(v)])),
