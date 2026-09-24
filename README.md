@@ -589,6 +589,9 @@ Claim する可能性がある。生死の判定という厄介な仕事をま�
   1. Google アカウントで2段階認証を有効にし、「アプリ パスワード」を1つ作る（16文字）
   2. `firebase functions:secrets:set GMAIL_APP_PASSWORD --project hongaeshi` を実行し、聞かれたら貼る
   3. `firebase deploy --project hongaeshi --only functions`
+- 2026-09-24、テストの訂正の連絡で**メールが届くことを確かめた。**最初に通常のパスワードを登録してしまい
+  `534-5.7.9 Application-specific password required` で弾かれた。**必ずアプリ パスワード**（16文字）を登録すること。
+  登録し直したら処理を出し直す（処理は登録した版を固定して使うため）
 - 送る部分は `送る()` の1か所だけ。**独自ドメインと SendGrid などに移すときは、そこだけ差し替える**
 - 東京（asia-northeast1）に置いてある。Firestore が東京なので、きっかけを受ける処理も同じ場所に置く
 - Cloud Functions の名前（`notifyRequest` など）だけは ASCII（日本語が使えない）
