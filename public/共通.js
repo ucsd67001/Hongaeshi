@@ -334,7 +334,11 @@ export async function 蔵書をよみこむ(){
       /* 申請から並んだ本なら、申請した人の uid。画面に名前を出すのは、
          読書家のページを公開している人だけ（公開か() で絞る） */
       申請者: x.requestedBy || null,
+      /* ⚠️ "絶版" は画面では「品切れ」と出す。Amazon で新品が無いことからの機械の判定なので
+            言い切らない（04_tools/在庫を入れる.mjs）。根拠と判定日を添える */
       状態: x.status || "流通",
+      状態の根拠: x.statusNote || null,
+      状態の日: x.statusCheckedAt || null,
       色: 題から色(x.title),
       受取: (x.to || []).map(id=>{
         const e = 主体表.get(id);

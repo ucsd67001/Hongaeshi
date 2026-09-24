@@ -106,8 +106,11 @@ window.本を直す = id=>{
     <label class="名札">いまの状態</label>
     <select class="欄" id="直す状態">
       <option value="流通" ${b.状態!=="絶版"?"selected":""}>流通中（買える）</option>
-      <option value="絶版" ${b.状態==="絶版"?"selected":""}>絶版・品切れ（「復刊を願う」が出る）</option>
+      <option value="絶版" ${b.状態==="絶版"?"selected":""}>品切れ・絶版（「復刊を願う」が出る）</option>
     </select>
+    <p class="節の注" style="margin-top:4px">
+      いま：${逃(b.状態の根拠 || "判定なし")}${b.状態の日 ? `（${逃(b.状態の日)}）` : ""}。
+      ここで変えると「管理者が設定」になり、自動の判定（04_tools/在庫を入れる.mjs）で上書きされなくなります。</p>
     <label class="名札">表紙のURL（手で入れる。自動取得より優先されます）</label>
     ${/* ⚠️ 前は b.書影（自動の表紙も混ざった、いま出ている表紙）を入れていて、
           そのまま「直す」を押すと自動の表紙が「手で入れた表紙」として保存された */ ""}
@@ -140,14 +143,18 @@ window.本を直す確定 = async id=>{
   const amazonLinks = url
     ? [{ label: b?.Amazonら[0]?.label || "", url }, ...残りのリンク]
     : 残りのリンク;
+  /* 状態を手で変えたときだけ、根拠を「管理者が設定」にする（自動の判定で上書きされないように） */
+  const 状態 = 取("直す状態") === "絶版" ? "絶版" : "流通";
+  const 状態を変えた = 状態 !== (b?.状態 || "流通");
   try{
     await updateDoc(doc(土台.db, "books", id), {
+      ...(状態を変えた ? { statusNote:"管理者が設定", statusCheckedAt:new Date().toISOString().slice(0,10) } : {}),
       title: 取("直す題"),
       subtitle: 取("直す副題") || null,
       authorText: 取("直す著"),
       publisherText: 取("直す版元"),
       year: Number(取("直す年")) || null,
-      status: 取("直す状態") === "絶版" ? "絶版" : "流通",
+      status: 状態,
       coverManual: 取("直す書影") || null,
       amazonLinks, amazonUrl: null
     });

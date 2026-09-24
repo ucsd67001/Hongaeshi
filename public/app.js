@@ -167,6 +167,16 @@ async function 描く(){
       出版社名の一部か年か、ぱっと見で切れ目が分からなかった。 */
 const 版元と年 = b => 逃(b.版元) + (b.年 ? `（${b.年}）` : "");
 
+/* 品切れの根拠と判定日。「（Amazon で新品なし・9月24日時点）」の形。
+   ⚠️ 機械の判定なので言い切らない。根拠が無い古い記録は何も添えない */
+function 状態の添え(b){
+  if(!b.状態の根拠) return "";
+  const 日 = /^(\d{4})-(\d{2})-(\d{2})$/.exec(b.状態の日 || "");
+  const 何日 = 日 ? `・${Number(日[2])}月${Number(日[3])}日時点` : "";
+  const 根拠 = b.状態の根拠.replace(/（中古のみ）$/, "");
+  return `<span class="節の注" style="display:inline;margin:0 0 0 4px;align-self:center">（${逃(根拠)}${何日}）</span>`;
+}
+
 function 本の札(b, s){
   s = s || { 人数:0, 金額:0, 残数:0, 約額:0 };
   const 右 = b.状態==="絶版"
@@ -177,7 +187,7 @@ function 本の札(b, s){
       ${表紙img(b)}
       <span>${逃(b.題)}</span></div>
     <div style="flex:1;min-width:0">
-      <div class="本の名">${逃(b.題)}${副(b)}${b.状態==="絶版"?' <span class="札 注">絶版</span>':""}</div>
+      <div class="本の名">${逃(b.題)}${副(b)}${b.状態==="絶版"?' <span class="札 注">品切れ</span>':""}</div>
       <div class="本の素性">${逃(b.著)}　—　${版元と年(b)}${b.頁?`　${b.頁}ページ`:""}</div>
     </div>
     <div class="本の数">${右}</div>
@@ -720,7 +730,7 @@ async function 頁_本(){
       ${表紙img(b)}
       <span>${逃(b.題)}</span></div>
     <div style="flex:1;min-width:0">
-      <p class="英字の札" style="margin-bottom:12px">${b.状態==="絶版"?"Out of print":"In print"}</p>
+      <p class="英字の札" style="margin-bottom:12px">${b.状態==="絶版"?"Out of stock":"In print"}</p>
       <h1 class="本の題">${逃(b.題)}</h1>
       ${b.副題 ? `<p class="本の副題">${逃(b.副題)}</p>` : ""}
       <p class="本の素性" style="font-size:12.5px;margin-top:12px">
@@ -729,7 +739,9 @@ async function 頁_本(){
         b.申請者 && 土台.公開か(b.申請者) ? `<p class="申請の礼">
           ${読書家の名(b.申請者, 土台.名を引く(b.申請者))} さんの申請で、棚に並びました</p>` : ""}
       <div style="margin-top:14px;display:flex;gap:7px;flex-wrap:wrap">
-        ${b.状態==="絶版"?'<span class="札 注">絶版・品切れ</span>':'<span class="札 済">流通中</span>'}
+        ${b.状態==="絶版"
+          ? `<span class="札 注">品切れ</span>${状態の添え(b)}`
+          : '<span class="札 済">流通中</span>'}
         ${受.length?"":'<span class="札 注">届け先なし</span>'}
       </div>
       <div style="margin-top:26px;display:flex;gap:10px;flex-wrap:wrap">
@@ -1609,7 +1621,8 @@ async function 頁_しくみ(){
         <p>本ではなく、人・出版社・書店そのものへ。いまは準備中です。
           本返しは、本を通して届けることをいちばん大事にしています。</p></div>
       <div><div class="番">03</div><h4>復刊を願う</h4>
-        <p>絶版・品切れの本へ。ポイントは動かさず、「復刊したら払う額」を意思として貯め、出版社に示します。</p></div>
+        <p>品切れ・絶版の本へ。ポイントは動かさず、「復刊したら払う額」を意思として貯め、出版社に示します。
+          品切れかどうかは、Amazon で新品が買えるかで判定し、判定した日を本のページに添えています。</p></div>
     </div>
   </section>
 
