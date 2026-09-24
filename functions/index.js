@@ -34,8 +34,9 @@ const db = getFirestore();
 setGlobalOptions({ region: "asia-northeast1", maxInstances: 2 });
 
 const Gmailのパスワード = defineSecret("GMAIL_APP_PASSWORD");
-/* 送信元＝送信先。独自ドメインに移すまでは運営の Gmail（functions/.env で変えられる） */
-const 運営の宛先 = defineString("NOTIFY_ADDRESS", { default: "ucsd67001@gmail.com" });
+/* 送信元＝送信先。独自ドメインに移すまでは運営の Gmail。
+   ⚠️ アドレスはコードに書かない（リポジトリは公開）。functions/.env の NOTIFY_ADDRESS に書く（.gitignore 済み） */
+const 運営の宛先 = defineString("NOTIFY_ADDRESS");
 const サイト = "https://hongaeshi.web.app";
 
 /* ── 送る（ここだけ差し替えれば SendGrid などに移れる） ── */
