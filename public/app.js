@@ -517,6 +517,11 @@ async function 頁_主体(){
     </div>
   </section>
 
+  <section class="節" style="padding-top:18px">
+    <p class="節の注" style="margin:0">
+      <a onclick="訂正を開く(null, ${引数(現在.id)})">名前の表記や、この相手の本の間違いを知らせる</a></p>
+  </section>
+
   ${流れる列("この相手の本", `${本ら.length}冊`, 本ら, null, false)}
 
   <section class="節">
@@ -764,6 +769,8 @@ async function 頁_本(){
       ${受.length?"":`<div class="断り" style="margin-top:22px">
         この本には、まだ受取人が登録されていません。<b>ポイントも受け取りません。</b>
         ことば${b.状態==="絶版" ? "と「復刊したら払いたい額」" : ""}だけを記録します。</div>`}
+      <p class="節の注" style="margin-top:18px">
+        <a onclick="訂正を開く(${引数(b.id)}, null)">書誌や表紙、品切れの判定などの間違いを知らせる</a></p>
     </div>
   </div>
 
@@ -799,6 +806,59 @@ async function 頁_本(){
     </div>
   </section>`;
 }
+
+/* ============================================================
+   覆い：間違いを知らせる（訂正の連絡）
+
+   ⚠️ 本か相手（著者・出版社）のどちらかについて。入っている人だけ（いたずら除け）。
+      届くと運営にメールが飛ぶ（functions/index.js の notifyReport）。
+   ============================================================ */
+let R = {};
+window.訂正を開く = (本id, 主体id)=>{
+  if(!土台.私){ ログイン(); return; }
+  R = { 本:本id || null, 主体:主体id || null, 種類:土台.訂正の種類[0], 文:"", 送信中:false, 済:false };
+  訂正描く();
+};
+window.訂正の種類を選ぶ = v=>{ R.種類 = v; };
+window.訂正の文 = v=>{ R.文 = v; };      // ⚠️ 描き直さない（打ちかけを消さない）
+
+function 訂正描く(){
+  const 何 = R.本 ? `『${逃(本を引く(R.本)?.題 || R.本)}』`
+            : R.主体 ? `「${逃(土台.主体表.get(R.主体)?.名 || R.主体)}」` : "本返し";
+  if(R.済) return 窓を出す("", `<div class="終い">
+      <div class="印">✉</div>
+      <h3 style="font-size:19px;margin:16px 0 10px;font-weight:600;letter-spacing:.09em">受け取りました</h3>
+      <p class="節の注" style="margin:0">運営が確かめて直します。知らせてくださって、ありがとうございます。</p>
+      <button class="釦 全幅" style="margin-top:26px" onclick="覆い閉じ()">閉じる</button></div>`);
+  窓を出す("間違いを知らせる", `
+    <p class="節の注" style="margin:0">${何}について、間違いや気づいたことを運営に知らせます。</p>
+    <p class="名札">なにが違いますか</p>
+    <select class="欄" id="訂正の種類" onchange="訂正の種類を選ぶ(this.value)">
+      ${土台.訂正の種類.map(k=>`<option ${k===R.種類?"selected":""}>${逃(k)}</option>`).join("")}
+    </select>
+    <p class="名札">どう違うか（正しい内容が分かれば、あわせて）</p>
+    <textarea class="欄" id="訂正の文" maxlength="1000"
+      placeholder="例）著者名の漢字が違います。正しくは「〇〇」です。"
+      oninput="訂正の文(this.value)">${逃(R.文)}</textarea>
+    <p class="節の注">公開はされません。運営だけが読みます。</p>
+    <button class="釦 全幅" style="margin-top:18px" ${R.送信中?"disabled":""} onclick="訂正を送る()">
+      ${R.送信中 ? "送っています…" : "知らせる"}</button>`);
+}
+
+window.訂正を送る = async ()=>{
+  if(R.送信中) return;
+  R.文 = document.getElementById("訂正の文")?.value ?? R.文;      // ⚠️ 送る直前に画面から読む
+  R.種類 = document.getElementById("訂正の種類")?.value || R.種類;
+  if(!R.文.trim()){ 知らせる("どう違うかを書いてください", true); return; }
+  R.送信中 = true; 訂正描く();
+  try{
+    await 土台.訂正を知らせる({ 本id:R.本, 主体id:R.主体, 種類:R.種類, 文:R.文 });
+    R.送信中 = false; R.済 = true; 訂正描く();
+  }catch(e){
+    R.送信中 = false; 訂正描く();
+    console.error(e); 知らせる("送れませんでした：" + (e.code||e.message), true);
+  }
+};
 
 /* ============================================================
    覆い：ことばを書く・直す

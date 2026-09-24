@@ -35,7 +35,7 @@ const {
 /* ============================================================
    画面
    ============================================================ */
-let 見ている = "本";     // 本 / 主体 / 申請
+let 見ている = "本";     // 本 / 主体 / 申請 / 訂正
 
 export async function 頁_管理(){
   if(!土台.私) return `<div class="節"><div class="断り">
@@ -48,6 +48,7 @@ export async function 頁_管理(){
 
   const 中 = 見ている === "本"   ? await 頁_本の管理()
            : 見ている === "主体" ? await 頁_主体の管理()
+           : 見ている === "訂正" ? await 頁_訂正の管理()
            :                       await 頁_申請の管理();
 
   return `
@@ -56,7 +57,7 @@ export async function 頁_管理(){
     <h1 class="大見出し" style="font-size:clamp(25px,3.2vw,34px)">管理</h1>
     <p class="導き">${逃(土台.私の名())} として入っています。</p>
     <div style="display:flex;gap:8px;margin-top:22px;flex-wrap:wrap">
-      ${["本","主体","申請"].map(k=>
+      ${["本","主体","申請","訂正"].map(k=>
         `<button class="釦 ${見ている===k?'':'枠だけ'} 小" onclick="管理の頁('${k}')">${k}</button>`).join("")}
     </div>
   </section>
@@ -355,6 +356,43 @@ async function 頁_申請の管理(){
       手元からなら <code>node 04_tools/Amazonリンクを入れる.mjs</code> で辿れます。</div>
   </section>`;
 }
+
+/* ── 訂正の連絡 ──────────────────────────────
+   利用者が本のページ・相手のページから送った「間違いを知らせる」。届くとメールも飛ぶ */
+async function 頁_訂正の管理(){
+  const s = await getDocs(query(collection(土台.db, "reports"), orderBy("at","desc")));
+  const ら = s.docs.map(d=>({ id:d.id, ...d.data() }));
+  const 待ち = ら.filter(x=>!x.done);
+  const どこ = r => r.book
+    ? `<a onclick="go('book',{id:${引数(r.book)}})">『${逃(土台.本を引く(r.book)?.題 || r.book)}』</a>`
+    : r.entity
+    ? `<a onclick="go('entity',{id:${引数(r.entity)}})">${逃(土台.主体表.get(r.entity)?.名 || r.entity)}</a>`
+    : "―";
+  return `
+  <section class="節">
+    <div class="節の頭"><h2 class="節見出し">訂正の連絡</h2>
+      <p class="節の添え">未処理 ${待ち.length}件 ／ 全 ${ら.length}件</p></div>
+    <div class="表の板"><table>
+      <tr><th>どこ</th><th>なに</th><th>中身</th><th>知らせた人</th><th>いつ</th><th></th></tr>
+      ${ら.length ? ら.map(r=>`<tr${r.done?' style="opacity:.45"':''}>
+        <td class="本">${どこ(r)}</td>
+        <td style="font-size:11.5px">${逃(r.kind)}</td>
+        <td style="max-width:40ch;white-space:pre-wrap">${逃(r.text)}</td>
+        <td style="font-size:11.5px">${逃(土台.名を引く(r.from))}</td>
+        <td style="color:var(--字のごく薄い);white-space:nowrap">${いつ(r.at)}</td>
+        <td class="右" style="white-space:nowrap">${r.done ? '<span class="札 済">処理済</span>'
+          : `<button class="釦 枠だけ 小" onclick="訂正を処理(${引数(r.id)})">処理済みにする</button>`}</td>
+      </tr>`).join("")
+      : '<tr><td colspan="6" style="color:var(--字のごく薄い)">まだありません。</td></tr>'}
+    </table></div>
+  </section>`;
+}
+window.訂正を処理 = async id=>{
+  try{
+    await updateDoc(doc(土台.db, "reports", id), { done: true });
+    知らせる("処理済みにしました"); window.描き直す();
+  }catch(e){ console.error(e); 知らせる("できませんでした", true); }
+};
 
 /* 見送り。⚠️ status を残す。done だけだと、出した人の画面で「並んだ」のか分からない */
 window.申請を処理 = async id=>{

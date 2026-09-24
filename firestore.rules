@@ -329,6 +329,23 @@ service cloud.firestore {
         && request.resource.data.at == request.time;
     }
 
+    /* ── 訂正の連絡 ─────────────────────────
+       reports/{id} : { book|null, entity|null, kind, text, from, at, done }
+       ⚠️ 入っている人だけが送れる（いたずら除け。申請と同じ）。読めるのは管理者だけ。
+       ⚠️ 送られると functions/index.js の notifyReport が運営にメールする */
+    match /reports/{id} {
+      allow read, update, delete: if isAdmin();
+      allow create: if isMe(request.resource.data.from)
+        && request.resource.data.keys().hasOnly(['book','entity','kind','text','from','at','done'])
+        && (request.resource.data.book == null || request.resource.data.book is string)
+        && (request.resource.data.entity == null || request.resource.data.entity is string)
+        && request.resource.data.kind is string && request.resource.data.kind.size() <= 40
+        && request.resource.data.text is string
+        && request.resource.data.text.size() >= 1 && request.resource.data.text.size() <= 1000
+        && request.resource.data.done == false
+        && request.resource.data.at == request.time;
+    }
+
     /* ── それ以外は、すべて閉じる ────────────────── */
     match /{document=**} {
       allow read, write: if false;

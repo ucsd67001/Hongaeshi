@@ -515,6 +515,20 @@ export async function 登録を申請する({ 題, 著, 版元, isbn, 覚書 }){
   return true;
 }
 
+/* 訂正の連絡。本か相手（著者・出版社）について、間違いを運営に知らせる。
+   ⚠️ 入っている人だけ（ルールで縛ってある）。届くと運営にメールが飛ぶ（functions/index.js） */
+export const 訂正の種類 = ["書名・著者・出版社などの書誌", "表紙", "品切れ・流通中の判定",
+                           "届け先（著者・出版社）", "その他"];
+export async function 訂正を知らせる({ 本id = null, 主体id = null, 種類, 文 }){
+  if(!私) throw new Error("ログインしていません");
+  const t = (文 || "").trim().slice(0, 1000);
+  if(!t) throw new Error("中身を入れてください");
+  await setDoc(doc(collection(db, "reports")), {
+    book: 本id, entity: 主体id, kind: String(種類 || "その他").slice(0, 40),
+    text: t, from: 私.uid, at: serverTimestamp(), done: false
+  });
+}
+
 /* 自分が出した申請と、そのその後。
    ⚠️ 申請が棚に並んだか分からないと、出した人は次を出さない。結果を見せて輪を閉じる。
    ⚠️ status が無い古い申請は、done で読み替える（done だけでは並んだか見送りか分からない）。

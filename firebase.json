@@ -1,30 +1,69 @@
 {
   "hosting": {
     "public": "public",
-    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
     "rewrites": [
-      { "source": "/demo", "destination": "/demo.html" },
-      { "source": "**", "destination": "/index.html" }
+      {
+        "source": "/demo",
+        "destination": "/demo.html"
+      },
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
     ],
     "headers": [
       {
         "//": "⚠️ Hosting の既定は max-age=3600。index.html を1時間掴まれると、SPAなので直したものが届かない。トライアル中は全部キャッシュさせない",
         "source": "**",
-        "headers": [{ "key": "Cache-Control", "value": "no-cache, max-age=0, must-revalidate" }]
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, max-age=0, must-revalidate"
+          }
+        ]
       }
     ],
     "cleanUrls": true
   },
-  "storage": { "rules": "storage.rules" },
+  "storage": {
+    "rules": "storage.rules"
+  },
   "firestore": {
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
   "emulators": {
-    "auth": { "port": 9099 },
-    "storage": { "rules": "storage.rules" },
-  "firestore": { "port": 8080 },
-    "hosting": { "port": 5000 },
-    "ui": { "enabled": true }
-  }
+    "auth": {
+      "port": 9099
+    },
+    "storage": {
+      "rules": "storage.rules"
+    },
+    "firestore": {
+      "port": 8080
+    },
+    "hosting": {
+      "port": 5000
+    },
+    "ui": {
+      "enabled": true
+    }
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "runtime": "nodejs22",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "*.local"
+      ]
+    }
+  ]
 }
