@@ -551,6 +551,8 @@ async function 頁_さがす(){
   ]);
   const 表 = 数.本;
   最後の数 = 数;
+  /* 参加した人：ポイントを返したか、名前を出してことばを書いた人（匿名のことばだけの人は数えられない） */
+  const 参加した人 = 数.人.filter(u=>u.件数 > 0 || u.ことば > 0).length;
   const 順 = 番付(数, 3, 現在.物差し);
   const 一覧 = q ? 土台.蔵書.filter(b=>(b.題+b.著+b.版元).includes(q)) : 土台.蔵書;
 
@@ -568,13 +570,14 @@ async function 頁_さがす(){
     </form>
     <p class="節の注" style="margin-top:14px"><a onclick="go('books')">本の一覧を見る</a></p>
     ${棚の育ち()}
+    ${/* ⚠️ ここはサービス全体の数字だけ（2026-09-24）。自分の残高は上の帯とわたしの本返しに出ている。
+          冊数はすぐ上の「いま○冊」と重なるので出さない。
+          ⚠️ 「届いた分」は受取人に渡る9割。前は支払額の合計をそのまま出していて、見出しと合っていなかった */ ""}
     <div class="数字たち">
-      ${数字("Thanks", 全体.人数.toLocaleString(), "これまでの本返し")}
-      ${数字("Returned", pt(全体.金額).replace("pt",""), "本の世界へ届いた分（pt）", true)}
+      ${数字("Returned", 受取人へ(全体.金額).toLocaleString(), "本の世界へ届いた分（pt）", true)}
+      ${数字("Readers", 参加した人.toLocaleString(), "本返し・ことばで参加した人")}
+      ${数字("Voices", 全体.ことば.toLocaleString(), "届いたことば")}
       ${数字("Revive", 全体.残数.toLocaleString(), "復刊を願う")}
-      ${入ってる
-        ? 数字("Wallet", (土台.財布?.残高??0).toLocaleString(), "あなたの残高（pt）")
-        : 数字("Books", 土台.蔵書.length, "棚にある本")}
     </div>
   </section>
 

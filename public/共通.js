@@ -603,11 +603,13 @@ export async function 本の集計(本id){
 }
 
 export async function 全体の集計(){
-  const [返, 残] = await Promise.all([
+  const [返, 残, 声] = await Promise.all([
     getAggregateFromServer(collection(db,"returns"), { 人数: count(), 総額: sum("amount") }),
-    getAggregateFromServer(collection(db,"keeps"), { 人数: count() })
+    getAggregateFromServer(collection(db,"keeps"), { 人数: count() }),
+    getAggregateFromServer(collection(db,"voices"), { 件数: count() })
   ]);
-  return { 人数: 返.data().人数, 金額: 返.data().総額 || 0, 残数: 残.data().人数 };
+  return { 人数: 返.data().人数, 金額: 返.data().総額 || 0, 残数: 残.data().人数,
+           ことば: 声.data().件数 };
 }
 
 /* まとめて数える ― 本ごと・主体ごと・人ごとを、**一度の読み込みで**出す。
