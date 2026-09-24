@@ -40,7 +40,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { initializeApp, cert } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
-import { openBDで引く, 著者をばらす, 読める名に, 主体のid, 出版社キー, 著者キー }
+import { openBDで引く, 著者をばらす, 読める名に, 主体のid, 出版社キー, 著者キー, 無い主体を作る }
   from "./書誌.mjs";
 import { 名前をととのえる } from "../public/名寄せ.js";
 const 実行 = promisify(execFile);
@@ -200,12 +200,8 @@ if(!直す.length && !作る本.length) process.exit(0);
 /* ⚠️ 単数の amazonUrl は消して、配列の amazonLinks に一本化する。
       両方あると、どちらを見るかで食い違う。 */
 const 束 = db.batch();
-/* ⚠️ merge:true。すでにある主体の claimed を壊さない */
-for(const [, e] of 新しい主体)
-  束.set(db.collection("entities").doc(e.id),
-    { type:e.type, name:e.name, key:e.key, aliases:[e.name],
-      claimed:false, claimedBy:null, detail:{}, updatedAt:new Date().toISOString() },
-    { merge:true });
+/* ⚠️ 既にある主体には書かない（書誌.mjs の 無い主体を作る） */
+await 無い主体を作る(db, 束, [...新しい主体.values()]);
 作る本.forEach(x=>束.set(db.collection("books").doc(x.id), x.中身, { merge:true }));
 直す.forEach(x=>束.update(db.collection("books").doc(x.id),
   { amazonLinks: x.links, amazonUrl: null }));

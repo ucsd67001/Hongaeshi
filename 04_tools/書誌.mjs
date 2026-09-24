@@ -148,3 +148,24 @@ export async function さがす(書名, 著者, 出版社, 上限 = 6){
     .slice(0, 上限);
   return { 候補, 使った条件, 総数:生.length, ISBN無し:生.filter(c=>!c.isbn).length };
 }
+
+/* ============================================================
+   主体（著者・出版社）を作る ― **まだ無いものだけ**
+
+   ⚠️⚠️ **既にある主体には何も書かない。**前は各道具が
+      set({ …, aliases:[名], claimed:false, claimedBy:null }, { merge:true }) と書いていて、
+      「merge だから既存の claimed を壊さない」とコメントしていたが、**merge でも書いた項目は上書きされる。**
+      引き継ぎ済みの出版社の本を登録すると引き継ぎが外れ、統合で集めた別名も消えていた
+      （まだ誰も引き継いでいないので実害は無かった。管理画面は 2026-09-23、道具は 2026-09-25 に直した）。
+   主体ら : [{ id, type, name, key, aliases? }]。束 : Admin SDK の batch。作ったものを返す。
+   ============================================================ */
+export async function 無い主体を作る(db, 束, 主体ら){
+  if(!主体ら.length) return [];
+  const 今 = await db.getAll(...主体ら.map(e=>db.collection("entities").doc(e.id)));
+  const 新 = 主体ら.filter((_, i)=>!今[i].exists);
+  新.forEach(e=>束.set(db.collection("entities").doc(e.id), {
+    type:e.type, name:e.name, key:e.key, aliases:e.aliases || [e.name],
+    claimed:false, claimedBy:null, detail:{}, updatedAt:new Date().toISOString()
+  }));
+  return 新;
+}

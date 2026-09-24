@@ -28,7 +28,7 @@
 import { readFileSync } from "node:fs";
 import { initializeApp, cert } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
-import { openBDで引く, 著者をばらす, 読める名に, 主体のid, 出版社キー, 著者キー } from "./書誌.mjs";
+import { openBDで引く, 著者をばらす, 読める名に, 主体のid, 出版社キー, 著者キー, 無い主体を作る } from "./書誌.mjs";
 
 /* 消す本 → 入れる本（複数可）。巻で分かれているものは複数書く */
 const 入れ替え = [
@@ -115,10 +115,7 @@ console.log(`入れる ${作る本.length}冊 ／ 消す ${消す本.length}冊 
 if(下見){ console.log("\n（下見なので、何も書いていません）"); process.exit(0); }
 
 const 束 = db.batch();
-for(const [id, e] of 主体)
-  束.set(db.collection("entities").doc(id),
-    { ...e, claimed:false, claimedBy:null, detail:{}, aliases:[e.name],
-      updatedAt:new Date().toISOString() }, { merge:true });
+await 無い主体を作る(db, 束, [...主体].map(([id, e])=>({ ...e, id })));   // ⚠️ 既にある主体には書かない
 作る本.forEach(x=>束.set(db.collection("books").doc(x.id), x.中身, { merge:true }));
 消す本.forEach(id=>束.delete(db.collection("books").doc(id)));
 await 束.commit();

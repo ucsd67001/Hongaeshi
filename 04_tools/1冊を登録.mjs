@@ -23,7 +23,7 @@
 import { readFileSync } from "node:fs";
 import { initializeApp, cert } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
-import { openBDで引く, 著者をばらす, 読める名に, 主体のid, 出版社キー, 著者キー } from "./書誌.mjs";
+import { openBDで引く, 著者をばらす, 読める名に, 主体のid, 出版社キー, 著者キー, 無い主体を作る } from "./書誌.mjs";
 import { 名前をととのえる } from "../public/名寄せ.js";
 
 const 引数 = process.argv.slice(2);
@@ -94,10 +94,7 @@ if(!著者名ら.length || !版元){
 if(下見){ console.log("\n（下見なので、何も書いていません）"); process.exit(0); }
 
 const 束 = db.batch();
-主体.forEach(e=>束.set(db.collection("entities").doc(e.id),
-  { type:e.type, name:e.name, key:e.key, aliases:[e.name],
-    claimed:false, claimedBy:null, detail:{}, updatedAt:new Date().toISOString() },
-  { merge:true }));                 // ⚠️ merge。すでにある主体の claimed を壊さない
+await 無い主体を作る(db, 束, 主体);   // ⚠️ 既にある主体には書かない（書誌.mjs）
 束.set(db.collection("books").doc(isbn), 中身, { merge:true });
 await 束.commit();
 console.log(`\n✓ 棚に並べました。ページ数と表紙は 表紙をつける.mjs で入ります。`);

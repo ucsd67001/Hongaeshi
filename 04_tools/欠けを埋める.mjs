@@ -26,7 +26,7 @@
 import { readFileSync } from "node:fs";
 import { initializeApp, cert } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
-import { 取得 } from "./書誌.mjs";
+import { 取得, 無い主体を作る } from "./書誌.mjs";
 import { 主体のid, 出版社キー, 名前をととのえる } from "../public/名寄せ.js";
 
 const 下見 = process.argv.includes("--下見");
@@ -94,11 +94,7 @@ if(下見){ console.log("（下見なので、何も書いていません）"); 
 if(!直す.length) process.exit(0);
 
 const 束 = db.batch();
-for(const [, e] of 作る主体)
-  束.set(db.collection("entities").doc(e.id),
-    { type:e.type, name:e.name, key:e.key, aliases:[e.name],
-      claimed:false, claimedBy:null, detail:{}, updatedAt:new Date().toISOString() },
-    { merge:true });
+await 無い主体を作る(db, 束, [...作る主体.values()]);   // ⚠️ 既にある主体には書かない
 直す.forEach(x=>束.update(db.collection("books").doc(x.id), x.中身));
 await 束.commit();
 console.log(`✓ 埋めました。`);

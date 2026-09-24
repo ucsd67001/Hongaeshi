@@ -27,6 +27,7 @@ import { readFileSync } from "node:fs";
 import { initializeApp, cert } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { 主体のid, 出版社キー, 著者キー, 名前をととのえる } from "../public/名寄せ.js";
+import { 無い主体を作る } from "./書誌.mjs";
 
 /* ISBN → 正しい著者（複数可）。翻訳者は入れない（いまの方針） */
 const 直す表 = {
@@ -168,11 +169,7 @@ if(下見){ console.log("\n（下見なので、何も書いていません）")
 if(!直す.length && !(掃除 && 孤児.length)){ console.log("直すものがありません。"); process.exit(0); }
 
 const 束 = db.batch();
-for(const [, e] of 作る主体)
-  束.set(db.collection("entities").doc(e.id),
-    { type:e.type, name:e.name, key:e.key, aliases:[e.name],
-      claimed:false, claimedBy:null, detail:{}, updatedAt:new Date().toISOString() },
-    { merge:true });
+await 無い主体を作る(db, 束, [...作る主体.values()]);   // ⚠️ 既にある主体には書かない
 直す.forEach(x=>束.update(db.collection("books").doc(x.id),
   { authorText: x.authorText, to: x.to }));
 if(掃除) 孤児.forEach(d=>束.delete(d.ref));

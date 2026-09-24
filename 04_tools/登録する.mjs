@@ -30,7 +30,7 @@ import { readFileSync } from "node:fs";
       credential が生えない。**サブパスから読むこと。** */
 import { initializeApp, cert } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
-import { 主体のid, 著者をばらす, 読める名に, 出版社キー, 著者キー } from "./書誌.mjs";
+import { 主体のid, 著者をばらす, 読める名に, 出版社キー, 著者キー, 無い主体を作る } from "./書誌.mjs";
 
 const 下見 = process.argv.includes("--下見");
 
@@ -141,14 +141,9 @@ initializeApp({ credential: cert(JSON.parse(readFileSync(鍵の場所, "utf8")))
 const db = getFirestore();
 
 const 束 = db.batch();
-for(const [id, e] of 主体){
-  束.set(db.collection("entities").doc(id), {
-    type: e.type, name: 名称(e), key: e.キー,
-    aliases: [...e.表記.keys()],
-    claimed: false, claimedBy: null, detail: {},
-    updatedAt: new Date().toISOString()
-  }, { merge: true });        // ⚠️ 既にあれば claimed 等を壊さないよう merge
-}
+/* ⚠️ 既にある主体には書かない（書誌.mjs の 無い主体を作る）。前は merge で claimed と aliases を上書きしていた */
+await 無い主体を作る(db, 束, [...主体].map(([id, e])=>({
+  id, type:e.type, name:名称(e), key:e.キー, aliases:[...e.表記.keys()] })));
 for(const b of 本ら) 束.set(db.collection("books").doc(b.id), b.中身, { merge: true });
 await 束.commit();
 

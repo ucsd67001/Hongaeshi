@@ -33,7 +33,7 @@ import {
   orderBy, limit, getDocs, writeBatch, serverTimestamp,
   getAggregateFromServer, sum, count
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
-import { getStorage, ref as 置き場, uploadBytes, getDownloadURL, deleteObject }
+import { getStorage, ref as 置き場, uploadBytes, getDownloadURL }
   from "https://www.gstatic.com/firebasejs/10.14.1/firebase-storage.js";
 
 /* ⚠️ 管理画面（管理.js）が Firestore を直に触るので、ここから渡す。
@@ -214,11 +214,6 @@ export async function 顔をあげる(ファイル){
   const 先 = 置き場(倉, `icons/${私.uid}`);
   await uploadBytes(先, 塊, { contentType:"image/webp", cacheControl:"public,max-age=86400" });
   return await getDownloadURL(先);
-}
-
-export async function 顔をけす(){
-  if(!私) throw new Error("ログインしていません");
-  await deleteObject(置き場(倉, `icons/${私.uid}`)).catch(()=>{});  // 無くてもよい
 }
 
 export async function 権限をしらべる(){
@@ -704,13 +699,10 @@ export async function まとめて数える(){
   };
 }
 
-/* 番付の物差し（上の段：本・著者・出版社）。**切り替えと並べ方を、ここ1か所で決める。**
-   ⚠️ 人数は「ポイントを返した別々の人の数」。ことばだけの人は「ことば」で数える。 */
-export const 物差しら = {
-  金額:   { 名:"ポイント",   項:"金額",   単位:"pt" },
-  人数:   { 名:"人数",   項:"人数",   単位:"人" },
-  ことば: { 名:"ことば", 項:"ことば", 単位:"件" }
-};
+/* 番付の上の段（本・著者・出版社）は、**返されたポイントの多い順だけ**。
+   ⚠️ 2026-09-24 に 人数／ことば の切り替えを付けたが、持ち主の判断で外した。
+      人数・ことばの数は まとめて数える() が今も数えているので、戻すなら 番付() に物差しを足すだけ */
+export const 本の物差し = { 項:"金額", 単位:"pt" };
 /* 下の段：熱心な読書家。切り替えずに3つ並べる（ポイント・ことば・棚づくり、それぞれの1位を見せる） */
 export const 読書家の物差しら = [
   { 名:"返したポイント", 項:"金額",   単位:"pt" },
@@ -719,9 +711,9 @@ export const 読書家の物差しら = [
 ];
 
 /* 番付。上位を何件か返すだけ。数えるのは上でやってある。
-   ⚠️ 並べるのは、その物差しが 1 以上のものだけ。同じ値なら金額の多い順 */
-export function 番付(数えたもの, 件数 = 3, 物差し = "金額"){
-  const 差 = 物差しら[物差し] || 物差しら.金額;
+   ⚠️ 並べるのは、その物差しが 1 以上のものだけ。同じ値ならポイントの多い順 */
+export function 番付(数えたもの, 件数 = 3){
+  const 差 = 本の物差し;
   const 並べる = (ら, 項) => ら.filter(x=>(x[項] || 0) > 0)
     .sort((a,b)=>(b[項] - a[項]) || (b.金額 - a.金額)).slice(0, 件数);
   const 主体ら = Object.values(数えたもの.主体)
