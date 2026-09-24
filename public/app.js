@@ -551,8 +551,6 @@ async function 頁_さがす(){
   ]);
   const 表 = 数.本;
   最後の数 = 数;
-  /* 参加した人：ポイントを返したか、名前を出してことばを書いた人（匿名のことばだけの人は数えられない） */
-  const 参加した人 = 数.人.filter(u=>u.件数 > 0 || u.ことば > 0).length;
   const 順 = 番付(数, 3, 現在.物差し);
   const 一覧 = q ? 土台.蔵書.filter(b=>(b.題+b.著+b.版元).includes(q)) : 土台.蔵書;
 
@@ -575,7 +573,6 @@ async function 頁_さがす(){
           ⚠️ 「届いた分」は受取人に渡る9割。前は支払額の合計をそのまま出していて、見出しと合っていなかった */ ""}
     <div class="数字たち">
       ${数字("Returned", 受取人へ(全体.金額).toLocaleString(), "本の世界へ届いた分（pt）", true)}
-      ${数字("Readers", 参加した人.toLocaleString(), "本返し・ことばで参加した人")}
       ${数字("Voices", 全体.ことば.toLocaleString(), "届いたことば")}
       ${数字("Revive", 全体.残数.toLocaleString(), "復刊を願う")}
     </div>
