@@ -526,7 +526,9 @@ td.本{font-family:var(--明朝);font-size:14.5px}
 /* ── 副題 ────────────────────────────────
    ⚠️ 巻の見分けがこれだけ、ということがある（『三剣物語』1〜3巻と外伝）。
       小さく出すが、**出さないという選択はしない。** */
-.副題{font-size:.82em;color:var(--字のごく薄い);margin-left:.5em;font-weight:400}
+.副題{font-size:.86em;color:var(--字の薄い);margin-left:.5em;font-weight:400}
 .流し札 .副題{display:block;margin-left:0;margin-top:2px}
-.本の副題{font-family:var(--明朝);font-size:15px;color:var(--字の薄い);
-  margin:6px 0 0;line-height:1.7}
+/* ⚠️ 2026-09-25 に大きく濃くした（前は 15px・薄い灰で、題の下で埋もれていた）。
+      『ビバリウム』の「Adoと私」のように、副題が本の中身を語ることがある */
+.本の副題{font-family:var(--明朝);font-size:clamp(17px,2vw,21px);color:var(--字);
+  font-weight:500;letter-spacing:.04em;margin:8px 0 0;line-height:1.6}
