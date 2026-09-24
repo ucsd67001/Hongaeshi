@@ -29,7 +29,7 @@ const 窓 = document.getElementById("窓");
 let 現在 = { 頁:"home" };
 
 /* 本の一覧の並び。ボタンの並びと、URL から受け付ける値を、ここ1か所で決める */
-const 並びの札 = [["登録","登録の新しい順"],["年","刊行の新しい順"],["額","返された分"],["頁","ページ数"],["題","書名"]];
+const 並びの札 = [["登録","登録の新しい順"],["年","刊行の新しい順"],["額","返されたポイント"],["頁","ページ数"],["題","書名"]];
 const 並びの名 = new Set(並びの札.map(([k])=>k));
 
 function 道を読む(){
@@ -435,31 +435,24 @@ const 番付の段 = (題, 行ら, 空の言葉) => `
     : `<p class="節の注" style="margin:10px 0 0">${空の言葉}</p>`}
   </div>`;
 
-/* ⚠️ 物差しは「金額」だけにしない（2026-09-23）。ポイントは誰にでも 10,000pt 配られるので、
-      金額の差は熱量より手持ちの差を映しがち。人数・冊数とことばの数でも並べられるようにした */
 /* ⚠️ 番付は上下の二段（2026-09-24）。推されている側（本・著者・出版社）と、
       推している側（読書家）を1行に混ぜると、物差しを足したときに読めなくなるため。
-      上の段だけ並べ方を切り替える。下の段は、お金・ことば・棚づくりの3つを並べて、
-      それぞれの形の参加に1位がいることを見せる。 */
-function 番付たち(順, 物差し = "金額"){
-  return 推されている本(順, 物差し) + 熱心な読書家(順);
+      上の段は**ポイントだけ**で並べる（2026-09-24、持ち主の判断で 人数・ことば の切り替えを外した。
+      切り替えの仕組みは 共通.js の 物差しら に残してある）。
+      下の段は、ポイント・ことば・棚づくりの3つを並べて、それぞれの形の参加に1位がいることを見せる。 */
+function 番付たち(順){
+  return 推されている本(順) + 熱心な読書家(順);
 }
 
-function 推されている本(順, 物差し = "金額"){
+function 推されている本(順){
   if(!順) return "";
   const 差 = 順.物差し;
   const 値 = x => ({ 値:x[差.項] || 0, 単位:差.単位 });
   const 主体行 = ら => ら.map(e=>({ 名:e.主体.名, ...値(e), 押せる:true,
                                    先頁:"entity", 先id:e.id }));
   return `
-  <section class="節" id="番付の節">
-    <div class="節の頭">
-      <h2 class="節見出し">いま推されている本</h2>
-      <div class="物差したち" role="group" aria-label="並べ方">
-        ${Object.entries(土台.物差しら).map(([k, v])=>`<button class="釦 ${k===物差し?'':'枠だけ'} 小"
-          aria-pressed="${k===物差し}" onclick="番付の物差し(${引数(k)})">${v.名}</button>`).join("")}
-      </div>
-    </div>
+  <section class="節">
+    ${節の頭("いま推されている本", "返されたポイントの多い順")}
     <div class="番付たち 三つ">
       ${番付の段("本", 順.本.map(b=>({ 名:b.本.題, ...値(b), 押せる:true,
                                       先頁:"book", 先id:b.id })), "まだありません")}
@@ -473,7 +466,7 @@ function 熱心な読書家(順){
   if(!順) return "";
   return `
   <section class="節">
-    ${節の頭("熱心な読書家", "お金・ことば・棚づくり、それぞれの形で本の世界を支えている人")}
+    ${節の頭("熱心な読書家", "ポイント・ことば・棚づくり、それぞれの形で本の世界を支えている人")}
     <div class="番付たち 三つ">
       ${順.読書家.map(m=>番付の段(m.名,
           m.行ら.map(u=>({ 値:u[m.項] || 0, 単位:m.単位, 印HTML: 読書家の名(u.id, u.名) })),
@@ -481,16 +474,6 @@ function 熱心な読書家(順){
     </div>
   </section>`;
 }
-/* 並べ方を変える。URL には積まない（トップの見え方の好みなので）。
-   ⚠️ 描く() で全体を描き直すと、いったん「読み込んでいます」に替わって
-      スクロール位置が上へ飛ぶ。数え直しも要らないので、番付の節だけ差し替える */
-let 最後の数 = null;
-window.番付の物差し = k =>{
-  現在.物差し = k;
-  const 節 = document.getElementById("番付の節");
-  if(節 && 最後の数) 節.outerHTML = 推されている本(土台.番付(最後の数, 3, k), k);
-  else 描く();
-};
 
 /* ============================================================
    頁：主体（著者・出版社・書店）
@@ -518,7 +501,7 @@ async function 頁_主体(){
       いまは架空のポイントで試しているため、届いた分をここに記録しています。
       本物のお金を扱うときは、引き継がれた相手にだけお渡しします。</div>`}
     <div class="数字たち">
-      ${数字("Received", 合計.toLocaleString(), `受け取った分（支払額の${受取率の百分率}%・pt）`, true)}
+      ${数字("Received", 合計.toLocaleString(), `受け取ったポイント（支払われたポイントの${受取率の百分率}%）`, true)}
       ${数字("Thanks", 明細.length, "届いた本返し")}
       ${数字("Books", 本ら.length, "この相手の本")}
     </div>
@@ -550,8 +533,7 @@ async function 頁_さがす(){
     まとめて数える(), 全体の集計(), 最近の声(5)
   ]);
   const 表 = 数.本;
-  最後の数 = 数;
-  const 順 = 番付(数, 3, 現在.物差し);
+  const 順 = 番付(数, 3);
   const 一覧 = q ? 土台.蔵書.filter(b=>(b.題+b.著+b.版元).includes(q)) : 土台.蔵書;
 
   return `
@@ -586,7 +568,7 @@ async function 頁_さがす(){
             <p class="節の注" style="margin:0 0 16px">見つかりませんでした。</p>
             ${申請ボタン()}</div>`}</div>
   </section>` : `
-  ${番付たち(順, 現在.物差し)}
+  ${番付たち(順)}
   ${/* 「ありがとうが集まっている本」の流れる列は外した（2026-09-23）。
        すぐ上の番付と中身が重なり、冊数が少ないと同じ本が繰り返し流れて見えたため */ ""}
   ${/* 並びは 番付 → 新しく入った本 → 声（2026-09-24、持ち主の指定で声と入れ替えた） */ ""}
@@ -916,7 +898,7 @@ function 返し描く(自由に){
         ${[100,300,500,1000,3000,5000].map(v=>
           `<button class="${!F.自由&&F.額===v?'いま':''}" ${v>残高?"disabled":""} onclick="額指定(${v})">${v.toLocaleString()}</button>`).join("")}
       </div>
-      <input class="欄" id="自由額" inputmode="numeric" placeholder="自由な額（100〜${Math.min(50000,残高).toLocaleString()}pt）"
+      <input class="欄" id="自由額" inputmode="numeric" placeholder="自由なポイント（100〜${Math.min(50000,残高).toLocaleString()}pt）"
         value="${逃(F.自由)}" oninput="額自由(this.value)">
       <div class="内訳">
         <div class="帯グラフ">
@@ -1065,7 +1047,7 @@ function 残し描く(){
     <p class="名札">復刊・電子化されたら、いくら払ってもいいですか</p>
     <div class="金額たち" style="margin-top:8px">
       ${[0,500,1000,2000,3000,5000].map(v=>
-        `<button class="${K.約===v?'いま':''}" onclick="約指定(${v})">${v===0?"額なし":v.toLocaleString()}</button>`).join("")}
+        `<button class="${K.約===v?'いま':''}" onclick="約指定(${v})">${v===0?"決めない":v.toLocaleString()}</button>`).join("")}
     </div>
     ${K.ことばあり
       ? `<p class="節の注" style="margin-top:18px">この本には、もうあなたのことばがあります（1冊にひとつ）。
@@ -1402,7 +1384,7 @@ async function 頁_私(){
   <section class="節">
     ${節の頭("記録", 行.length+"件")}
     <div class="表の板"><table>
-      <tr><th>本</th><th>種類</th><th class="右">額</th><th>ことば</th><th>いつ</th></tr>
+      <tr><th>本</th><th>種類</th><th class="右">ポイント</th><th>ことば</th><th>いつ</th></tr>
       ${行.length ? 行.map(r=>{const b=本を引く(r.本);return `<tr>
         <td class="本"><a onclick="go('book',{id:${引数(r.本)}})">${逃(b?.題||r.本)}</a></td>
         <td>${r.種==="返し" ? '<span class="札 済">本返し</span>'
@@ -1536,16 +1518,16 @@ async function 頁_受取人(){
         onclick="受取人を選ぶ(${引数(r.id)})">${逃(r.名)}<span style="opacity:.55"> ${r.冊数}冊</span></button>`).join("")}
     </div>
     <div class="数字たち">
-      ${数字("Received", 合計.toLocaleString(), `受取額（支払額の${受取率の百分率}%・pt）`, true)}
+      ${数字("Received", 合計.toLocaleString(), `受け取ったポイント（支払われたポイントの${受取率の百分率}%）`, true)}
       ${数字("Thanks", 明細.length, "届いた本返し")}
       ${数字("Voices", 声あり.length, "読者の声")}
     </div>
   </section>
 
   <section class="節">
-    ${節の頭("明細", `支払額の${受取率の百分率}%が配分に応じて渡ります`)}
+    ${節の頭("明細", `支払われたポイントの${受取率の百分率}%が、配分に応じて渡ります`)}
     <div class="表の板"><table>
-      <tr><th>本</th><th>読者</th><th class="右">受取額</th><th>いつ</th></tr>
+      <tr><th>本</th><th>読者</th><th class="右">受け取ったポイント</th><th>いつ</th></tr>
       ${明細.length ? 明細.map(i=>`<tr>
         <td class="本"><a onclick="go('book',{id:${引数(i.本)}})">${逃(本を引く(i.本)?.題||i.本)}</a></td>
         <td>${名と印(i.送り主, i.名, i.名==="匿名")}</td><td class="右">${i.額.toLocaleString()}</td>

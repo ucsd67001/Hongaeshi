@@ -135,9 +135,6 @@ h2.節見出し{font-size:18px;font-weight:600;letter-spacing:.09em;margin:0}
 a.読書家へ{color:var(--灯の濃い)}
 a.読書家へ .名と印{color:inherit}
 
-/* 番付の並べ方。見出しの右に寄せ、狭い画面では見出しの下へ折り返す */
-.節の頭:has(.物差したち){flex-wrap:wrap;align-items:center;row-gap:10px}
-.物差したち{display:flex;gap:6px;margin-left:auto;flex-wrap:wrap}
 .節の注{font-family:var(--ゴシック);color:var(--字のごく薄い);font-size:12px;
   letter-spacing:.03em;margin:12px 0 0}
 
