@@ -108,10 +108,11 @@ window.addEventListener("popstate", async ()=>{
    帯
    ============================================================ */
 function 帯を描く(){
-  /* ⚠️ 権限で出し分ける。③利用者に見せるのは、さがす／本の一覧／わたしの本返し／しくみ だけ。
+  /* ⚠️ 権限で出し分ける。③利用者に見せるのは、本の一覧／マイページ／しくみ だけ。
+        「さがす」は外した（2026-09-24）。トップそのものなので、左上の「本返し」から戻れる。
         受取人の控えは①②、管理は①のみ。 */
-  const 品 = [["home","さがす"],["books","本の一覧"]];
-  if(土台.私) 品.push(["mine","わたしの本返し"]);
+  const 品 = [["books","本の一覧"]];
+  if(土台.私) 品.push(["mine","マイページ"]);
   if(土台.権限.管理者 || 土台.権限.受取人.length) 品.push(["receiver","受取人の控え"]);
   品.push(["about","しくみ"]);
   if(土台.権限.管理者) 品.push(["admin","管理"]);
@@ -124,10 +125,9 @@ function 帯を描く(){
     <div class="財布">
       <div class="残">${(土台.財布?.残高 ?? 0).toLocaleString()}<span>PT</span></div>
     </div>
-    <button class="わたし" onclick="設定をひらく()" title="設定">
+    <button class="わたし" onclick="go('mine')" title="マイページ">
       ${しるし(土台.私の印())}
       <span class="名">${逃(土台.私の名())}</span>
-      <span class="下向き">▾</span>
     </button>`
   : `<button class="釦 小" onclick="ログイン()">Googleで入る</button>`;
 }
@@ -295,7 +295,7 @@ function 棚の育ち(){
     <p class="育つ棚の数"><b>いま ${全}冊</b>${増 && 増 < 全 ? `<span>今月 ＋${増}冊</span>` : ""}</p>
     <p class="節の注" style="margin:6px 0 0">
       棚は、読んだ人の申請で育っています。読んだ本が見つからなければ、登録をお願いしてください。
-      確かめてから棚に並べます。並んだかどうかは「わたしの本返し」で見られます。</p>
+      確かめてから棚に並べます。並んだかどうかは「マイページ」で見られます。</p>
     <button class="釦 枠だけ 小" style="margin-top:12px"
       onclick="${土台.私 ? "申請を始める()" : "ログイン()"}">
       ${土台.私 ? "読んだ本を棚に加える" : "入って、読んだ本を棚に加える"}</button>
@@ -494,7 +494,7 @@ function 熱心な読書家(順){
 async function 頁_主体(){
   const e = 土台.主体表.get(現在.id);
   if(!e) return `<div class="節"><div class="断り">その相手は見つかりませんでした。
-    <button class="釦 枠だけ 小" style="margin-left:10px" onclick="go('home')">さがすへ</button></div></div>`;
+    <button class="釦 枠だけ 小" style="margin-left:10px" onclick="go('home')">トップへ</button></div></div>`;
 
   const 本ら = 土台.蔵書.filter(b=>b.受取.some(r=>r.id === 現在.id));
   const [{ 明細, 合計 }, 声あり] = await Promise.all([
@@ -565,7 +565,7 @@ async function 頁_さがす(){
     </form>
     <p class="節の注" style="margin-top:14px"><a onclick="go('books')">本の一覧を見る</a></p>
     ${棚の育ち()}
-    ${/* ⚠️ ここはサービス全体の数字だけ（2026-09-24）。自分の残高は上の帯とわたしの本返しに出ている。
+    ${/* ⚠️ ここはサービス全体の数字だけ（2026-09-24）。自分の残高は上の帯とマイページに出ている。
           冊数はすぐ上の「いま○冊」と重なるので出さない。
           ⚠️ 「届いた分」は受取人に渡る9割。前は支払額の合計をそのまま出していて、見出しと合っていなかった */ ""}
     <div class="数字たち">
@@ -719,7 +719,7 @@ async function 頁_本(){
   const 入ってる = !!土台.私;      // ⚠️ 入っていなくても本は見せる。声と本返しだけ求める
   const b = 本を引く(現在.id);
   if(!b) return `<div class="節"><div class="断り">その本は見つかりませんでした。
-    <button class="釦 枠だけ 小" style="margin-left:10px" onclick="go('home')">さがすへ</button></div></div>`;
+    <button class="釦 枠だけ 小" style="margin-left:10px" onclick="go('home')">トップへ</button></div></div>`;
 
   /* ⚠️ returns / keeps は公開読み取り。**入っていなくても集計と声が出る。** */
   const [s, 声たち, 自分の声] = await Promise.all([本の集計(b.id), 本の声(b.id), 土台.私のことば(b.id)]);
@@ -1175,7 +1175,7 @@ function 申請描く(欄を保つ){
       <div class="印">📖</div>
       <h3 style="font-size:19px;margin:16px 0 10px;font-weight:600;letter-spacing:.09em">受け取りました</h3>
       <p class="節の注" style="margin:0">書誌を確かめてから棚に並べます。<br>
-        並んだかどうかは「わたしの本返し」の「あなたの申請」で見られます。</p>
+        並んだかどうかは「マイページ」の「あなたの申請」で見られます。</p>
       <button class="釦 全幅" style="margin-top:26px" onclick="覆い閉じ();location.reload()">閉じる</button>
       <button class="釦 枠だけ 全幅" style="margin-top:10px" onclick="覆い閉じ();go('mine')">あなたの申請を見る</button>
     </div>` : `
@@ -1424,7 +1424,7 @@ window.名乗りを保存 = async ()=>{
 };
 
 /* ============================================================
-   頁：わたしの本返し
+   頁：マイページ（/me。前の「わたしの本返し」）
    ============================================================ */
 async function 頁_私(){
   if(!土台.私) return 入るには();
@@ -1437,14 +1437,26 @@ async function 頁_私(){
   const 合計 = 返し.reduce((s,x)=>s+x.額,0);
   const 純 = 受取人へ(合計);
 
+  /* ⚠️ 「自分のこと」はここに集める（2026-09-24）。前は 設定の窓・わたしの本返し・読書家のページ の
+        3か所に分かれていた。右上の名前もここへ来る。設定は窓のまま（たまにしか変えないので）。
+        頭に公開の状態を出して、「いま公開されているか」がすぐ分かるようにする */
+  const 公開 = 土台.公開か(土台.私.uid);
   return `
   <section class="幕">
-    <p class="英字の札">My returns</p>
-    <h1 class="大見出し" style="font-size:clamp(25px,3.2vw,34px)">わたしの本返し</h1>
-    <p class="導き">あなたが本の世界へ返したもの。
-      ${土台.公開か(土台.私.uid)
-        ? `<a onclick="go('reader',{id:${引数(土台.私.uid)}})">公開しているあなたのページを見る</a>`
-        : `<a onclick="設定をひらく()">設定で、自分のページを公開できます</a>`}</p>
+    <p class="英字の札">My page</p>
+    <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+      ${しるし(土台.私の印(), "大")}
+      <div style="min-width:0">
+        <h1 class="大見出し" style="font-size:clamp(25px,3.2vw,34px);margin:0">${逃(土台.私の名())}</h1>
+        <p class="節の注" style="margin:4px 0 0">
+          ${公開 ? '<span class="札 済">ページを公開中</span>' : '<span class="札">ページは非公開</span>'}</p>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:20px">
+      <button class="釦 枠だけ 小" onclick="設定をひらく()">名前・しるし・公開を変える</button>
+      ${公開 ? `<button class="釦 枠だけ 小" onclick="go('reader',{id:${引数(土台.私.uid)}})">他の人からの見え方を見る</button>` : ""}
+    </div>
+    <p class="導き" style="margin-top:22px">あなたが本の世界へ返したもの。</p>
     <div class="数字たち">
       ${数字("Count", 返し.length, "返した回数")}
       ${数字("Paid", 合計.toLocaleString(), "使ったポイント", true)}
@@ -1504,7 +1516,7 @@ async function 頁_読書家(){
          設定の「自分のページを公開する」を選ぶと、ここに推している本とことばが並びます。
          <button class="釦 枠だけ 小" style="margin-left:12px" onclick="設定をひらく()">設定をひらく</button>`
       : `この人は、ページを公開していません。
-         <button class="釦 枠だけ 小" style="margin-left:12px" onclick="go('home')">さがすへ</button>`}
+         <button class="釦 枠だけ 小" style="margin-left:12px" onclick="go('home')">トップへ</button>`}
     </div></div>`;
 
   const 行 = await 土台.読書家の記録(uid);
