@@ -134,6 +134,41 @@ function 帯を描く(){
 window.ログイン  = ()=> 入る();
 window.ログアウト = ()=> 出る();
 
+/* ── 狭い画面：帯のメニューをたたむ（2026-09-25。GEMu_Web の 帯.js と同じ作り） ──
+   ⚠️ ボタンはここで1回だけ作る。nav の中身は 帯を描く() が描くたびに入れ替えるので、
+      ボタンを nav の中に置かないこと（消える）。
+   ⚠️ 押せるものとして必ず満たす：aria-expanded／Escape で閉じる／外を押すと閉じる／
+      行き先を押したら閉じる／画面を広げたら閉じる（開いたまま固まって見えないように）
+   ⚠️ 残高と名前（帯の右）はたたまない。いちばんよく使う入口なので出したままにする */
+(function 帯をたためるように(){
+  const 帯 = document.querySelector(".帯"), 中 = 帯?.querySelector(".中");
+  if(!帯 || !中) return;
+  const ボタン = document.createElement("button");
+  ボタン.type = "button";
+  ボタン.className = "たたむボタン";
+  ボタン.setAttribute("aria-label", "メニュー");
+  ボタン.setAttribute("aria-expanded", "false");
+  ボタン.setAttribute("aria-controls", "nav");
+  ボタン.innerHTML = '<span class="線"></span><span class="線"></span><span class="線"></span>';
+  中.appendChild(ボタン);
+
+  const 開け閉め = 開く =>{
+    帯.classList.toggle("開いている", 開く);
+    ボタン.setAttribute("aria-expanded", 開く ? "true" : "false");
+  };
+  ボタン.addEventListener("click", e=>{
+    e.stopPropagation();
+    開け閉め(ボタン.getAttribute("aria-expanded") !== "true");
+  });
+  帯のnav.addEventListener("click", e=>{ if(e.target.closest("button")) 開け閉め(false); });
+  document.addEventListener("click", e=>{ if(!帯.contains(e.target)) 開け閉め(false); });
+  document.addEventListener("keydown", e=>{
+    if(e.key === "Escape" && 帯.classList.contains("開いている")){ 開け閉め(false); ボタン.focus(); }
+  });
+  const 広い = window.matchMedia("(min-width: 821px)");     // ⚠️ style.css の 820px とそろえる
+  広い.addEventListener("change", ()=>{ if(広い.matches) 開け閉め(false); });
+})();
+
 /* ============================================================
    共通の部品
    ============================================================ */

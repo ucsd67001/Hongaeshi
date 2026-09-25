@@ -342,14 +342,45 @@ td.本{font-family:var(--明朝);font-size:14.5px}
   font-family:var(--ゴシック);font-size:11px;color:var(--字のごく薄い);
   display:flex;gap:20px;align-items:center;flex-wrap:wrap;letter-spacing:.04em}
 
+/* ── 帯のメニューをたたむボタン（三本線）。広い画面では出さない ──
+   ⚠️ ボタンは app.js の 帯をたためるように() が作る。index.html には書いていない */
+.たたむボタン{display:none;width:38px;height:38px;flex:none;
+  border-radius:2px;box-shadow:inset 0 0 0 1px var(--罫の濃い);
+  flex-direction:column;align-items:center;justify-content:center;gap:5px}
+.たたむボタン .線{display:block;width:16px;height:1.5px;background:var(--字の薄い);
+  transition:transform .18s,opacity .18s}
+.たたむボタン:hover .線{background:var(--字)}
+
 /* ── 狭い画面 ───────────────────────────── */
+/* ⚠️ 前は帯を2段に折り返して nav を横スクロールにしていた。2026-09-25 に、
+      GEMu_Web と同じく三本線のボタンでたたむ形にした。
+      メニューは帯の**下に垂らす**（画面いっぱいに覆うと閉じ方が分からなくなる） */
 @media(max-width:820px){
-  .帯 .中{height:auto;padding:12px 0;flex-wrap:wrap;gap:14px}
-  .帯 nav{order:3;width:100%;margin-left:0;gap:18px;overflow-x:auto;
-    border-top:1px solid var(--罫のごく薄い);padding-top:2px}
-  .帯 nav button{padding:8px 0 7px;white-space:nowrap}
+  .帯 .中{gap:14px}
   .試用札{display:none}
   .看板 img{max-height:30vh}
+  #帯の右{margin-left:auto}
+  .たたむボタン{display:flex}
+
+  /* nav の入れ物は .帯（sticky なので、ここが基準になる）。帯の幅いっぱいに垂らす */
+  .帯 nav{position:absolute;top:100%;left:0;right:0;margin:0;
+    flex-direction:column;align-items:stretch;gap:0;
+    padding:6px max(16px, calc((100% - 1080px) / 2));
+    background:rgba(248,246,252,.98);backdrop-filter:blur(12px);
+    border-bottom:1px solid var(--罫);
+    /* たたんだ状態。⚠️ display:none にしない（開く動きが付けられなくなる） */
+    opacity:0;visibility:hidden;transform:translateY(-6px);
+    transition:opacity .16s,transform .16s,visibility .16s}
+  .帯 nav button{text-align:left;padding:13px 0;font-size:14px;
+    border-bottom:1px solid var(--罫のごく薄い)}
+  .帯 nav button:last-child{border-bottom:none}
+  .帯 nav button.いま{border-bottom-color:var(--罫のごく薄い);font-weight:600}
+  .帯.開いている nav{opacity:1;visibility:visible;transform:none}
+
+  /* 開いているあいだは「×」に見せる */
+  .帯.開いている .たたむボタン .線:nth-child(1){transform:translateY(6.5px) rotate(45deg)}
+  .帯.開いている .たたむボタン .線:nth-child(2){opacity:0}
+  .帯.開いている .たたむボタン .線:nth-child(3){transform:translateY(-6.5px) rotate(-45deg)}
 }
 /* ⚠️ 節見出しと添えを横に並べたままだと、狭い画面で見出しが縦に潰れる。
       760px から下は、添えを次の行へ落とす */
