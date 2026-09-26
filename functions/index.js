@@ -11,7 +11,7 @@
      ・登録の申請（requests）     … 1件ごと
      ・訂正の連絡（reports）      … 1件ごと
      ・本返し・ことば・復刊を願う … 1日1回まとめて（毎晩21時・日本時間）
-     ・申請の本が棚に並んだ       … 申請した人へ（本人が選んだときだけ。notifyRequestDone）
+     ・申請の本が棚に並んだ／もう棚にあった … 申請した人へ（本人が選んだときだけ。notifyRequestDone）
 
    読んで返すもの
      ・いまの気分から本を薦める（recommendBooks）… マイページから。入っている人だけ
@@ -108,7 +108,9 @@ export const notifyRequestDone = onDocumentUpdated(
   async e => {
     const 前 = e.data?.before?.data(), 後 = e.data?.after?.data();
     if(!前 || !後) return;
-    if(前.status === "並んだ" || 後.status !== "並んだ") return;
+    /* 「並んだ」と「既にある」（もう棚にあった。2026-09-26 決定 1-a）の2つ。その状態に**変わったとき**だけ */
+    if(前.status === 後.status || !["並んだ", "既にある"].includes(後.status)) return;
+    const 既に = 後.status === "既にある";
     if(後.notify !== true){ logger.info("知らせない申請です", { id: e.params.id }); return; }
     let 宛先 = null;
     try{ 宛先 = (await getAuth().getUser(後.from)).email || null; }catch(err){ /* 下で止める */ }
@@ -119,12 +121,13 @@ export const notifyRequestDone = onDocumentUpdated(
     /* 別の版として足したとき（版を足す.mjs）は、どの版で並んだかを添える */
     const 版 = 本 && 後.isbn ? (本.editions || []).find(v=>v.isbn === 後.isbn) : null;
     const 名 = await 名を引く(後.from);
-    await 送る(`申請の本が棚に並びました：『${題}』`, [
+    await 送る(既に ? `申請の本は、もう棚にありました：『${題}』` : `申請の本が棚に並びました：『${題}』`, [
       `${名 === "（名乗りなし）" ? "" : 名 + " さん\n\n"}本返しに本を申請してくださって、ありがとうございます。`,
-      `申請の本が、棚に並びました。`,
+      既に ? `申請の本は、もう棚に並んでいました。こちらのページから、本返しやことばを届けられます。`
+           : `申請の本が、棚に並びました。`,
       ``,
       `　『${題}』`,
-      版 ? `　（${版.label}を、この本の版のひとつとして加えました）` : null,
+      版 ? `　（${版.label}${既に ? "も、この本の版のひとつとして並んでいます" : "を、この本の版のひとつとして加えました"}）` : null,
       後.book ? `　${サイト}/b/${後.book}` : null,
       ``,
       `読んだあとの本返しやことばを、お待ちしています。`,

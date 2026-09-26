@@ -205,10 +205,12 @@ const 版元と年 = b => 逃(b.版元) + (b.年 ? `（${b.年}）` : "");
 /* 品切れの根拠と判定日。「（Amazon で新品なし・9月24日時点）」の形。
    ⚠️ 機械の判定なので言い切らない。根拠が無い古い記録は何も添えない */
 function 状態の添え(b){
-  if(!b.状態の根拠) return "";
-  const 日 = /^(\d{4})-(\d{2})-(\d{2})$/.exec(b.状態の日 || "");
+  /* 確かめた絶版は、その根拠と確かめた日（「出版社が2010年に解散・9月26日時点」） */
+  const 元 = b.絶版の根拠 || b.状態の根拠;
+  if(!元) return "";
+  const 日 = /^(\d{4})-(\d{2})-(\d{2})$/.exec((b.絶版の根拠 ? b.絶版の日 : b.状態の日) || "");
   const 何日 = 日 ? `・${Number(日[2])}月${Number(日[3])}日時点` : "";
-  const 根拠 = b.状態の根拠.replace(/（中古のみ）$/, "");
+  const 根拠 = 元.replace(/（中古のみ）$/, "");
   return `<span class="節の注" style="display:inline;margin:0 0 0 4px;align-self:center">（${逃(根拠)}${何日}）</span>`;
 }
 
@@ -232,7 +234,7 @@ function 本の札(b, s){
       ${表紙img(b)}
       <span>${逃(b.題)}</span></div>
     <div style="flex:1;min-width:0">
-      <div class="本の名">${逃(b.題)}${副(b)}${b.状態==="絶版"?' <span class="札 注">品切れ</span>':""}</div>
+      <div class="本の名">${逃(b.題)}${副(b)}${b.状態==="絶版"?` <span class="札 注">${土台.状態の名(b)}</span>`:""}</div>
       <div class="本の素性">${逃(b.著)}　—　${版元と年(b)}${b.頁?`　${b.頁}ページ`:""}</div>
     </div>
     <div class="本の数">${右}</div>
@@ -800,7 +802,7 @@ async function 頁_本(){
       ${表紙img(b)}
       <span>${逃(b.題)}</span></div>
     <div style="flex:1;min-width:0">
-      <p class="英字の札" style="margin-bottom:12px">${b.状態==="絶版"?"Out of stock":"In print"}</p>
+      <p class="英字の札" style="margin-bottom:12px">${b.状態!=="絶版" ? "In print" : b.絶版の根拠 ? "Out of print" : "Out of stock"}</p>
       <h1 class="本の題">${逃(b.題)}</h1>
       ${b.副題 ? `<p class="本の副題">${逃(b.副題)}</p>` : ""}
       <p class="本の素性" style="font-size:12.5px;margin-top:12px">
@@ -811,7 +813,7 @@ async function 頁_本(){
           ${読書家の名(b.申請者, 土台.名を引く(b.申請者))} さんの申請で、棚に並びました</p>` : ""}
       <div style="margin-top:14px;display:flex;gap:7px;flex-wrap:wrap">
         ${b.状態==="絶版"
-          ? `<span class="札 注">品切れ</span>${状態の添え(b)}`
+          ? `<span class="札 注">${土台.状態の名(b)}</span>${状態の添え(b)}`
           : '<span class="札 済">流通中</span>'}
         ${受.length?"":'<span class="札 注">届け先なし</span>'}
       </div>
@@ -836,7 +838,7 @@ async function 頁_本(){
         この本には、まだ受取人が登録されていません。<b>ポイントも受け取りません。</b>
         ことば${b.状態==="絶版" ? "と「復刊したら払いたい額」" : ""}だけを記録します。</div>`}
       <p class="節の注" style="margin-top:18px">
-        <a onclick="訂正を開く(${引数(b.id)}, null)">書誌や表紙、品切れの判定などの間違いを知らせる</a></p>
+        <a onclick="訂正を開く(${引数(b.id)}, null)">書誌や表紙、品切れ・絶版の判定などの間違いを知らせる</a></p>
     </div>
   </div>
 
@@ -1555,7 +1557,7 @@ function 薦めの中(){
         ${表紙img(b)}
         <span>${逃(b.題)}</span></div>
       <div style="flex:1;min-width:0">
-        <div class="本の名">${逃(b.題)}${副(b)}${b.状態==="絶版"?' <span class="札 注">品切れ</span>':""}</div>
+        <div class="本の名">${逃(b.題)}${副(b)}${b.状態==="絶版"?` <span class="札 注">${土台.状態の名(b)}</span>`:""}</div>
         <div class="本の素性">${逃(b.著)}　—　${版元と年(b)}</div>
         <p class="薦めの理由">${逃(p.理由)}</p>
       </div>
@@ -1666,7 +1668,7 @@ async function 頁_私(){
         <td class="本">${r.本 && 本を引く(r.本)
           ? `<a onclick="go('book',{id:${引数(r.本)}})">${逃(本を引く(r.本).題)}</a>`
           : 逃(r.題)}</td>
-        <td><span class="札 ${r.状態==="並んだ" ? "済" : r.状態==="見送り" ? "注" : "藤"}">${逃(土台.申請の状態[r.状態] || r.状態)}</span></td>
+        <td><span class="札 ${r.状態==="並んだ" || r.状態==="既にある" ? "済" : r.状態==="見送り" ? "注" : "藤"}">${逃(土台.申請の状態[r.状態] || r.状態)}</span></td>
         <td style="color:var(--字のごく薄い);white-space:nowrap">${いつ(r.時)}</td></tr>`).join("")
       : `<tr><td colspan="3" style="color:var(--字のごく薄い)">まだ申請はありません。</td></tr>`}
     </table></div>
@@ -1868,7 +1870,8 @@ async function 頁_しくみ(){
           本返しは、本を通して届けることをいちばん大事にしています。</p></div>
       <div><div class="番">03</div><h4>復刊を願う</h4>
         <p>品切れ・絶版の本へ。ポイントは動かさず、「復刊したら払う額」を意思として貯め、出版社に示します。
-          品切れかどうかは、Amazon で新品が買えるかで判定し、判定した日を本のページに添えています。</p></div>
+          品切れかどうかは、Amazon で新品が買えるかで判定し、判定した日を本のページに添えています。
+          「絶版」と出すのは、出版社が絶版としている・出版社がもう無い、など確かめられた本だけです。</p></div>
     </div>
   </section>
 

@@ -3,6 +3,7 @@
 
      node 04_tools/申請.mjs                         ← 未処理の申請を並べる（棚との重複も見る）
      node 04_tools/申請.mjs 並べた <申請id> <ISBN13>  ← 棚に並べたことを記録する（別の版として足した ISBN でもよい）
+     node 04_tools/申請.mjs 既にある <申請id> <ISBN13> ← もう棚にあったことを記録する（本の requestedBy は触らない）
      node 04_tools/申請.mjs 見送り <申請id>           ← 見送ったことを記録する
 
    ⚠️⚠️ **管理画面の「本にする」と同じ記録を残すこと。**手元の道具で本を登録しただけだと、
@@ -88,10 +89,20 @@ if(何を === "並べた"){
     await 束.commit();
     console.log(`✓ 『${x.title}』を「棚に並びました」にしました。行き先は作品『${作品.data().title}』（${作品.id}）の版です。`);
   }
+}else if(何を === "既にある"){
+  /* もう棚にある（2026-09-26）。⚠️ 本の requestedBy は触らない（棚に加えた人は先に加えた人のまま）。
+        「並べた」で処理すると上書きされ、「棚に並びました」のメールも飛ぶ。
+        status を「既にある」にすると、notifyRequestDone が「もう棚にありました」のメールを送る（本人が選んでいれば） */
+  if(!/^\d{13}$/.test(isbn || "")){ console.error("× 棚にある本の ISBN13 を渡してください。"); process.exit(1); }
+  const 棚 = (await db.collection("books").get()).docs;
+  const 作品 = 棚.find(d=>d.id === isbn) || 棚.find(d=>(d.data().editions || []).some(v=>v.isbn === isbn));
+  if(!作品){ console.error(`× ${isbn} は棚にありません（別の版にもありません）。`); process.exit(1); }
+  await 申請.update({ done:true, status:"既にある", book:作品.id });
+  console.log(`✓ 『${x.title}』を「もう棚にありました」にしました。行き先は『${作品.data().title}』（${作品.id}）です。`);
 }else if(何を === "見送り"){
   await 申請.update({ done:true, status:"見送り" });
   console.log(`✓ 『${x.title}』を「見送り」にしました。`);
 }else{
-  console.error(`× 「${何を}」は分かりません。並べた／見送り のどちらかです。`); process.exit(1);
+  console.error(`× 「${何を}」は分かりません。並べた／既にある／見送り のどれかです。`); process.exit(1);
 }
 process.exit(0);

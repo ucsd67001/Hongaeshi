@@ -111,12 +111,16 @@ window.本を直す = id=>{
                + (b.紹介の出どころ ? `出どころ：${逃(b.紹介の出どころ)}` : "") : "まだ紹介がありません。"}
       ここで保存すると「確かめ済み」になり、道具（04_tools/紹介を入れる.mjs）で上書きされなくなります。</p>
     <label class="名札">いまの状態</label>
+    ${/* ⚠️ 「絶版」は確かめた本だけ（2026-09-26 決定 C）。根拠を必ず書く。品切れと絶版は、中の status はどちらも "絶版" */ ""}
     <select class="欄" id="直す状態">
       <option value="流通" ${b.状態!=="絶版"?"selected":""}>流通中（買える）</option>
-      <option value="絶版" ${b.状態==="絶版"?"selected":""}>品切れ・絶版（「復刊を願う」が出る）</option>
+      <option value="品切れ" ${b.状態==="絶版" && !b.絶版の根拠?"selected":""}>品切れ（「復刊を願う」が出る）</option>
+      <option value="確かめた絶版" ${b.絶版の根拠?"selected":""}>絶版（確かめた。根拠を下に書く）</option>
     </select>
+    <input class="欄" id="直す絶版の根拠" maxlength="80" value="${逃(b.絶版の根拠||"")}"
+      placeholder="絶版の根拠（例：出版社が2010年に解散／出版社のページに「絶版」）">
     <p class="節の注" style="margin-top:4px">
-      いま：${逃(b.状態の根拠 || "判定なし")}${b.状態の日 ? `（${逃(b.状態の日)}）` : ""}。
+      いま：${逃(b.絶版の根拠 ? "絶版（" + b.絶版の根拠 + "）" : (b.状態の根拠 || "判定なし"))}${b.状態の日 ? `（${逃(b.状態の日)}）` : ""}。
       ここで変えると「管理者が設定」になり、自動の判定（04_tools/在庫を入れる.mjs）で上書きされなくなります。</p>
     <label class="名札">表紙のURL（手で入れる。自動取得より優先されます）</label>
     ${/* ⚠️ 前は b.書影（自動の表紙も混ざった、いま出ている表紙）を入れていて、
@@ -151,11 +155,17 @@ window.本を直す確定 = async id=>{
     ? [{ label: b?.Amazonら[0]?.label || "", url }, ...残りのリンク]
     : 残りのリンク;
   /* 状態を手で変えたときだけ、根拠を「管理者が設定」にする（自動の判定で上書きされないように） */
-  const 状態 = 取("直す状態") === "絶版" ? "絶版" : "流通";
-  const 状態を変えた = 状態 !== (b?.状態 || "流通");
+  const 選んだ = 取("直す状態");
+  const 状態 = 選んだ === "流通" ? "流通" : "絶版";
+  const 絶版の根拠 = 選んだ === "確かめた絶版" ? 取("直す絶版の根拠") : "";
+  if(選んだ === "確かめた絶版" && !絶版の根拠){ 知らせる("絶版の根拠を書いてください", true); return; }
+  const 今日 = new Date().toISOString().slice(0,10);
+  const いまの選び = b?.状態 !== "絶版" ? "流通" : b?.絶版の根拠 ? "確かめた絶版" : "品切れ";
+  const 状態を変えた = 選んだ !== いまの選び || (絶版の根拠 && 絶版の根拠 !== b?.絶版の根拠);
   try{
     await updateDoc(doc(土台.db, "books", id), {
-      ...(状態を変えた ? { statusNote:"管理者が設定", statusCheckedAt:new Date().toISOString().slice(0,10) } : {}),
+      ...(状態を変えた ? { statusNote:"管理者が設定", statusCheckedAt:今日,
+                          outOfPrint: 絶版の根拠 ? { note: 絶版の根拠.slice(0, 80), checkedAt: 今日 } : null } : {}),
       title: 取("直す題"),
       subtitle: 取("直す副題") || null,
       authorText: 取("直す著"),
@@ -357,6 +367,8 @@ async function 頁_申請の管理(){
           ? `<span class="札 ${r.status==="見送り"?"注":"済"}">${逃(土台.申請の状態[r.status] || "処理済")}</span>`
           : `<button class="釦 小" onclick="申請を本にする(${引数(r.id)})">本にする</button>
              <button class="釦 枠だけ 小" style="margin-left:4px"
+               onclick="申請はもうある(${引数(r.id)}, ${引数(r.isbn || "")})">もう棚にある</button>
+             <button class="釦 枠だけ 小" style="margin-left:4px"
                onclick="申請を処理(${引数(r.id)})">見送り</button>`}</td>
       </tr>`).join("")
       : '<tr><td colspan="6" style="color:var(--字のごく薄い)">申請はまだありません。</td></tr>'}
@@ -404,6 +416,28 @@ window.訂正を処理 = async id=>{
   try{
     await updateDoc(doc(土台.db, "reports", id), { done: true });
     知らせる("処理済みにしました"); window.描き直す();
+  }catch(e){ console.error(e); 知らせる("できませんでした", true); }
+};
+
+/* もう棚にある（2026-09-26）。⚠️ 見送りとは分ける（断ったのではない）。
+   ⚠️⚠️ **本の requestedBy は触らない。**「棚に加えた人」は、先に加えた人のまま。
+      「並べた」で処理すると上書きされ、「棚に並びました」のメールも飛んでしまう。
+   status を「既にある」にすると、functions の notifyRequestDone が「もう棚にありました」のメールを送る
+   （本人が選んでいれば）。book には作品のページの id を入れる（別の版の ISBN でも作品を引く） */
+window.申請はもうある = async (id, isbn)=>{
+  let 本 = isbn ? 土台.本を引く(isbn) : null;
+  if(本){
+    if(!confirm(`『${本.題}』（${本.id}）がもう棚にある、として処理します。よいですか？`)) return;
+  }else{
+    const 入れた = (prompt("棚にある本の ISBN を入れてください（申請の ISBN では見つかりませんでした）") || "").replace(/[^0-9Xx]/g, "");
+    if(!入れた) return;
+    本 = 土台.本を引く(入れた);
+    if(!本){ 知らせる(`${入れた} は棚にありません`, true); return; }
+    if(!confirm(`『${本.題}』（${本.id}）がもう棚にある、として処理します。よいですか？`)) return;
+  }
+  try{
+    await updateDoc(doc(土台.db, "requests", id), { done: true, status: "既にある", book: 本.id });
+    知らせる("「もう棚にありました」にしました"); window.描き直す();
   }catch(e){ console.error(e); 知らせる("できませんでした", true); }
 };
 
