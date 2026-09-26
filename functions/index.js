@@ -11,6 +11,7 @@
      ・登録の申請（requests）     … 1件ごと
      ・訂正の連絡（reports）      … 1件ごと
      ・本返し・ことば・復刊を願う … 1日1回まとめて（毎晩21時・日本時間）
+     ・申請の本が棚に並んだ       … 申請した人へ（本人が選んだときだけ。notifyRequestDone）
 
    読んで返すもの
      ・いまの気分から本を薦める（recommendBooks）… マイページから。入っている人だけ
@@ -25,7 +26,8 @@
       `firebase functions:secrets:set GMAIL_APP_PASSWORD --project hongaeshi`
    ============================================================ */
 
-import { onDocumentCreated } from "firebase-functions/v2/firestore";
+import { onDocumentCreated, onDocumentUpdated } from "firebase-functions/v2/firestore";
+import { getAuth } from "firebase-admin/auth";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { setGlobalOptions, logger } from "firebase-functions/v2";
@@ -46,15 +48,17 @@ const Gmailのパスワード = defineSecret("GMAIL_APP_PASSWORD");
 const 運営の宛先 = defineString("NOTIFY_ADDRESS");
 const サイト = "https://hongaeshi.web.app";
 
-/* ── 送る（ここだけ差し替えれば SendGrid などに移れる） ── */
-async function 送る(件名, 本文){
-  const 宛先 = 運営の宛先.value();
+/* ── 送る（ここだけ差し替えれば SendGrid などに移れる） ──
+   送り主はいつも運営の Gmail。宛先を渡さなければ運営あて（通知）。
+   ⚠️ 利用者あてのとき、アドレスはログに出さない */
+async function 送る(件名, 本文, 利用者の宛先 = null){
+  const 運営 = 運営の宛先.value();
   const 送り手 = nodemailer.createTransport({
     service: "gmail",
-    auth: { user: 宛先, pass: Gmailのパスワード.value() }
+    auth: { user: 運営, pass: Gmailのパスワード.value() }
   });
-  await 送り手.sendMail({ from: `本返し <${宛先}>`, to: 宛先, subject: `［本返し］${件名}`, text: 本文 });
-  logger.info("送りました", { 件名 });
+  await 送り手.sendMail({ from: `本返し <${運営}>`, to: 利用者の宛先 || 運営, subject: `［本返し］${件名}`, text: 本文 });
+  logger.info("送りました", { 件名, あて: 利用者の宛先 ? "利用者" : "運営" });
 }
 
 /* ── 読むための小道具 ── */
@@ -92,6 +96,45 @@ export const notifyRequest = onDocumentCreated(
       `管理画面で「本にする」か「見送り」を選んでください：`,
       `${サイト}/admin`
     ].join("\n"));
+  });
+
+/* ── 申請の本が棚に並んだ：申請した人へ（2026-09-26） ──
+   ⚠️ 申請の status が「並んだ」に**変わったときだけ**送る（管理画面の「本にする」も 申請.mjs 並べた も同じ記録を残す）。
+      ほかの項目が変わっただけでは送らない。見送りは送らない（決定 3-a。マイページの「あなたの申請」で分かる）。
+   ⚠️ 本人が申請の窓で「メールでお知らせする」を選んだ申請だけ（notify == true。無い古い申請は送らない）。
+   ⚠️ 宛先はログインに使った Google アカウントのアドレス。**Firestore には置かない。**送るときに認証の記録から引く */
+export const notifyRequestDone = onDocumentUpdated(
+  { document: "requests/{id}", secrets: [Gmailのパスワード] },
+  async e => {
+    const 前 = e.data?.before?.data(), 後 = e.data?.after?.data();
+    if(!前 || !後) return;
+    if(前.status === "並んだ" || 後.status !== "並んだ") return;
+    if(後.notify !== true){ logger.info("知らせない申請です", { id: e.params.id }); return; }
+    let 宛先 = null;
+    try{ 宛先 = (await getAuth().getUser(後.from)).email || null; }catch(err){ /* 下で止める */ }
+    if(!宛先){ logger.warn("申請した人のアドレスが分かりません", { id: e.params.id }); return; }
+
+    const 本 = 後.book ? (await db.doc(`books/${後.book}`).get()).data() : null;
+    const 題 = 本 ? 本.title + (本.subtitle ? " " + 本.subtitle : "") : 後.title;
+    /* 別の版として足したとき（版を足す.mjs）は、どの版で並んだかを添える */
+    const 版 = 本 && 後.isbn ? (本.editions || []).find(v=>v.isbn === 後.isbn) : null;
+    const 名 = await 名を引く(後.from);
+    await 送る(`申請の本が棚に並びました：『${題}』`, [
+      `${名 === "（名乗りなし）" ? "" : 名 + " さん\n\n"}本返しに本を申請してくださって、ありがとうございます。`,
+      `申請の本が、棚に並びました。`,
+      ``,
+      `　『${題}』`,
+      版 ? `　（${版.label}を、この本の版のひとつとして加えました）` : null,
+      後.book ? `　${サイト}/b/${後.book}` : null,
+      ``,
+      `読んだあとの本返しやことばを、お待ちしています。`,
+      `申請の記録は、マイページの「あなたの申請」でも見られます。`,
+      `${サイト}/me`,
+      ``,
+      `――`,
+      `本返し ― 読んだあとに、ありがとうを。`,
+      `このメールは、申請のときに「棚に並んだら、メールでお知らせする」を選んだ方にお送りしています。`
+    ].filter(x=>x !== null).join("\n"), 宛先);
   });
 
 /* ── 訂正の連絡：1件ごと ── */

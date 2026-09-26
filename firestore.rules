@@ -318,9 +318,11 @@ service cloud.firestore {
       /* 承認・見送りは管理者だけ。status（並んだ／見送り）と book（並んだ本の ISBN）を足す */
       allow update, delete: if isAdmin();
 
+      /* notify：棚に並んだらメールで知らせるか（本人が選ぶ。2026-09-26）。無い古い申請は「知らせない」 */
       allow create: if isMe(request.resource.data.from)
         && request.resource.data.keys().hasOnly(
-             ['from','name','title','author','publisher','isbn','memo','at'])
+             ['from','name','title','author','publisher','isbn','memo','notify','at'])
+        && (!('notify' in request.resource.data) || request.resource.data.notify is bool)
         && request.resource.data.title is string
         && request.resource.data.title.size() > 0 && request.resource.data.title.size() <= 200
         && request.resource.data.author is string && request.resource.data.author.size() <= 100

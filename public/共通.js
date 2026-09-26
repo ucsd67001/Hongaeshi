@@ -548,7 +548,10 @@ export async function ことばを消す(本id){
    ⚠️ ISBN のときだけ openBD で即座に確かめられる（57ms）。
       これは待たせても気にならない速さなので、入力補助として使う。
    ============================================================ */
-export async function 登録を申請する({ 題, 著, 版元, isbn, 覚書 }){
+/* ⚠️ メールで知らせるか（notify）。本人が申請の窓で選ぶ。既定は「知らせる」（2026-09-26 決定 2-a）。
+      並んだら functions/index.js の notifyRequestDone が、ログインに使ったアドレスへ送る。
+      **アドレスはここに保存しない**（送るときに Firebase の認証の記録から引く） */
+export async function 登録を申請する({ 題, 著, 版元, isbn, 覚書, メールで知らせる }){
   if(!私) throw new Error("ログインしていません");
   await setDoc(doc(collection(db, "requests")), {
     from: 私.uid,
@@ -558,6 +561,7 @@ export async function 登録を申請する({ 題, 著, 版元, isbn, 覚書 }){
     publisher: (版元 || "").slice(0,100),
     isbn: (isbn || "").replace(/[^0-9Xx]/g, "").slice(0,13),
     memo: (覚書 || "").slice(0,300),
+    notify: メールで知らせる === true,
     at: serverTimestamp()
   });
   return true;

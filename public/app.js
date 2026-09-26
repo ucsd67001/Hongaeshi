@@ -1210,7 +1210,7 @@ window.残し確定 = async ()=>{
    ============================================================ */
 let S = {};
 window.申請を始める = ()=>{ S = { 題:"", 著:"", 版元:"", isbn:"", amazon:"", 覚書:"",
-  済:false, 送信中:false, 確認:null };
+  メールで知らせる:true, 済:false, 送信中:false, 確認:null };
   申請描く(); };
 
 function 申請描く(欄を保つ){
@@ -1223,7 +1223,8 @@ function 申請描く(欄を保つ){
       <div class="印">📖</div>
       <h3 style="font-size:19px;margin:16px 0 10px;font-weight:600;letter-spacing:.09em">受け取りました</h3>
       <p class="節の注" style="margin:0">書誌を確かめてから棚に並べます。<br>
-        並んだかどうかは「マイページ」の「あなたの申請」で見られます。</p>
+        並んだかどうかは「マイページ」の「あなたの申請」で見られます。
+        ${S.メールで知らせる ? "<br>並んだら、メールでもお知らせします。" : ""}</p>
       <button class="釦 全幅" style="margin-top:26px" onclick="覆い閉じ();location.reload()">閉じる</button>
       <button class="釦 枠だけ 全幅" style="margin-top:10px" onclick="覆い閉じ();go('mine')">あなたの申請を見る</button>
     </div>` : `
@@ -1268,6 +1269,15 @@ function 申請描く(欄を保つ){
     <textarea class="欄" id="申覚書" maxlength="300"
       placeholder="例）文庫版でお願いします／この本に返したくて登録しました"
       oninput="申請の値('覚書',this.value)">${逃(S.覚書)}</textarea>
+
+    ${/* ⚠️ メールは本人が選ぶ。既定は「知らせる」。送り先が分かるようにアドレスを見せる（2026-09-26 決定 2-a） */ ""}
+    <label style="display:flex;align-items:flex-start;gap:10px;margin-top:20px;
+      font-family:var(--ゴシック);font-size:12.5px;color:var(--字);cursor:pointer">
+      <input type="checkbox" id="申知らせ" ${S.メールで知らせる ? "checked" : ""} style="margin-top:3px"
+        onchange="申請の値('メールで知らせる', this.checked)">
+      <span>棚に並んだら、メールでお知らせする<br>
+        <span class="節の注" style="display:inline;margin:0">送り先：${逃(土台.私?.email || "ログインに使ったアドレス")}（並んだときの1通だけ）</span></span>
+    </label>
 
     <div class="断り" style="margin-top:20px">
       そのまま受け取って、こちらで書誌を確かめてから並べます。
@@ -1327,6 +1337,8 @@ window.申請を出す = async ()=>{
     if(e) S[k] = e.value.trim();
   });
   if(!S.題 || !S.著 || !S.版元){ 知らせる("書名・著者名・出版社名は必須です", true); return; }
+  const 知らせ欄 = document.getElementById("申知らせ");
+  if(知らせ欄) S.メールで知らせる = 知らせ欄.checked;
   S.送信中 = true; 申請描く();
   try{
     await 土台.登録を申請する(S);
