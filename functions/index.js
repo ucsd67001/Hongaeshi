@@ -167,7 +167,7 @@ export const dailyDigest = onSchedule(
       `firebase functions:secrets:set OPENAI_API_KEY --project hongaeshi`
    ============================================================ */
 const OpenAIの鍵 = defineSecret("OPENAI_API_KEY");
-const 使う型 = "gpt-4.1-mini";     // GEMu_Web と同じ。1回およそ 2〜3万トークン（棚の紹介文ぶん）
+const 使う型 = "gpt-4.1-mini";     // GEMu_Web と同じ。92冊の棚で1回およそ1.3万トークン（ほとんど棚の紹介文）
 const 気分の長さ = 200;
 const 薦める冊数 = 3;
 
