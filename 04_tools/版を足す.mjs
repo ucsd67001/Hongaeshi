@@ -119,7 +119,9 @@ const 版 = {
   publisherText: 版元の表記 || null, year: 年, pages: 頁,
   amazonLinks: 正 ? [{ label: "", url: 正 }] : [],
   cover: o?.書影 || null,
-  status: "流通",
+  /* ⚠️⚠️ status は書かない（＝未判定）。「流通」で足すと、品切れの作品が流通に変わって
+        「復刊を願う」が消える（2026-09-26 の下見で気づいた。文庫が品切れの本に古い単行本を足す例）。
+        作品を流通にするのは、Amazon で「流通」と判定された版があるときだけ（共通.js）。足したら品切れを調べる */
   addedAt: new Date().toISOString()
 };
 const この本は = 値("--この本は");

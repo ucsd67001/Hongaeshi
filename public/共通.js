@@ -318,7 +318,9 @@ export async function 蔵書をよみこむ(){
    ・状態：どれか1つの版が買えれば「流通」。品切れと出すのは、全部の版が品切れのときだけ
    editions の1件は { isbn, label, title?, subtitle?, publisherText, year, pages,
                        amazonLinks, cover, coverManual?, status, statusNote, statusCheckedAt, requestedBy? } */
-const 版の姿 = (v, 名) => ({
+/* ⚠️ 状態の既定：作品の本体は「流通」（前からの本）、足した版は「未判定」。
+      足した版は Amazon で「流通」と判定されるまで、作品を流通にしない（版を足す.mjs の注） */
+const 版の姿 = (v, 名, 既定の状態 = "未判定") => ({
   isbn: v.isbn, 名: 名 ?? v.label ?? "",
   題: v.title || null, 副題: v.subtitle || null,
   版元: v.publisherText || "", 年: v.year || null, 頁: v.pages || null,
@@ -326,7 +328,7 @@ const 版の姿 = (v, 名) => ({
   控えの書影: v.cover || null,
   Amazonら: (v.amazonLinks && v.amazonLinks.length ? v.amazonLinks
              : v.amazonUrl ? [{ label:"", url:v.amazonUrl }] : []),
-  状態: v.status || "流通", 状態の根拠: v.statusNote || null, 状態の日: v.statusCheckedAt || null,
+  状態: v.status || 既定の状態, 状態の根拠: v.statusNote || null, 状態の日: v.statusCheckedAt || null,
   申請者: v.requestedBy || null
 });
 
@@ -334,7 +336,7 @@ function 版をまとめる(b){
   if(b.版ら.length < 2) return b;
   const 年順 = [...b.版ら].sort((p, q)=>(p.年 || 9999) - (q.年 || 9999));
   const 最初 = 年順[0];
-  const 買える = b.版ら.find(v=>v.状態 !== "絶版");
+  const 買える = b.版ら.find(v=>v.状態 === "流通");
   const 表紙の版 = (買える && 買える.書影) ? 買える : b.版ら[0];
   return { ...b,
     年: 最初.年 || b.年, 版元: 最初.版元 || b.版元,
@@ -348,7 +350,7 @@ function 版をまとめる(b){
 
 /* 作品のページの形。版が1つなら、前と同じ中身になる */
 function 本の姿(id, x){
-  const 本体 = 版の姿({ ...x, isbn: x.isbn || id }, x.editionLabel || "");
+  const 本体 = 版の姿({ ...x, isbn: x.isbn || id }, x.editionLabel || "", "流通");
   return {
       版ら: [本体, ...(x.editions || []).map(v=>版の姿(v))],
       id, isbn: x.isbn,
