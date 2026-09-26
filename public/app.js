@@ -396,6 +396,14 @@ window.列を送る = (名, 向き)=>{
   if(c){ c.送る(向き); c.休ませる(1200); }
 };
 
+/* 窓の幅が変わったら、写しと間を作り直す。⚠️ 横幅で「間」の長さが決まるので、
+   広げたときに作り直さないと、同じ本が2回見えることがある */
+let 幅の待ち = 0;
+window.addEventListener("resize", ()=>{
+  clearTimeout(幅の待ち);
+  幅の待ち = setTimeout(()=>{ for(const 列 of 列たち.values()){ 列.輪にする(); 列.位置を戻す(); } }, 250);
+});
+
 function 列を仕込む(){
   列たち.clear();
   for(const 列 of 画面.querySelectorAll(".列")){
@@ -408,19 +416,40 @@ function 列を仕込む(){
 
     let 一組の幅 = 0;
     function 輪にする(){
-      const 本物 = [...列.querySelectorAll(".流し札:not(.写し)")];
-      列.querySelectorAll(".流し札.写し").forEach(e=>e.remove());
+      列.querySelectorAll(".写し, .流し間").forEach(e=>e.remove());
+      const 本物 = [...列.querySelectorAll(".流し札")];
       if(本物.length < 2) return false;
       const 間 = parseFloat(getComputedStyle(列).columnGap || "18") || 18;
-      一組の幅 = 本物.reduce((合,e)=>合 + e.getBoundingClientRect().width + 間, 0);
-      let いま = 一組の幅, i = 0;
-      while(いま < 一組の幅 + 列.clientWidth + 一枚ぶん()){
-        const 写し = 本物[i % 本物.length].cloneNode(true);
+      const 札の幅 = 本物.reduce((合,e)=>合 + e.getBoundingClientRect().width + 間, 0);
+      /* ⚠️⚠️ **同じ本を、同時に2回見せない**（2026-09-26）。
+            冊数が少なくて1組が横幅に満たないと、写しで埋めていたので「モモ」が並んで2回見えていた。
+            1組の後ろに「間」を置いて、1組の長さを横幅より長くする。
+            本は左へ流れ切ってから右から入り直す。間が空いてよい（持ち主の判断） */
+      /* ⚠️ 1組の長さは「横幅＋1冊ぶん」以上にする。横幅ちょうどだと、左端で消えかけの本と
+            右端から入る同じ本が、端で少しずつ同時に見える（2026-09-26 に確かめて直した） */
+      const 一冊 = Math.max(...本物.map(e=>e.getBoundingClientRect().width));
+      const 足りない = 列.clientWidth + 一冊 - 札の幅 - 間;
+      const 組 = [...本物];
+      if(足りない > 0){
+        const 余白 = document.createElement("div");
+        余白.className = "流し間";
+        余白.setAttribute("aria-hidden", "true");
+        余白.style.flex = `0 0 ${Math.ceil(足りない) + 1}px`;
+        列.appendChild(余白);
+        組.push(余白);
+      }
+      一組の幅 = 組.reduce((合,e)=>合 + e.getBoundingClientRect().width + 間, 0);
+      /* 写しは、1組の後ろに「横幅＋1枚ぶん」だけ足す（流れの継ぎ目を見せないため）。
+         1組が「横幅＋1冊」より長いので、写しと本物が同時に見えることはない */
+      let いま = 0, i = 0;
+      while(いま < 列.clientWidth + 一枚ぶん()){
+        const 元 = 組[i % 組.length];
+        const 写し = 元.cloneNode(true);
         写し.classList.add("写し");
         写し.setAttribute("aria-hidden","true");
         写し.tabIndex = -1;
         列.appendChild(写し);
-        いま += 一枚ぶん(); i++;
+        いま += 元.getBoundingClientRect().width + 間; i++;
         if(i > 60) break;                      // 念のための歯止め
       }
       return true;
@@ -437,7 +466,7 @@ function 列を仕込む(){
     const 輪になった = 輪にする();
     let 休み = 0;
     const 休ませる = ミリ秒=>{ 休み = ミリ秒 ? Date.now() + ミリ秒 : 0; };
-    列たち.set(列.id, { 休ませる, 送る });
+    列たち.set(列.id, { 休ませる, 送る, 輪にする, 位置を戻す });
 
     列.addEventListener("mouseenter", ()=>休ませる(60000));
     列.addEventListener("mouseleave", ()=>休ませる(0));
