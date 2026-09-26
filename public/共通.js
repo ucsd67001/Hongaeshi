@@ -305,10 +305,53 @@ export async function 蔵書をよみこむ(){
     return [d.id, { id:d.id, 型:x.type, 名:x.name, 認証:!!x.claimed }];
   }));
 
-  蔵書 = 本ら.docs.map(d=>{
-    const x = d.data();
-    return {
-      id: d.id, isbn: x.isbn,
+  蔵書 = 本ら.docs.map(d=>版をまとめる(本の姿(d.id, d.data())));
+  return 蔵書;
+}
+
+/* ── 版（単行本と文庫など）──────────────────────
+   ⚠️⚠️ **1作品1ページ。**同じ作品の別の版は、新しい本にせず books/{最初に入った ISBN}.editions に足す
+      （2026-09-26 決定。前は「文庫に差し替える」だったが、差し替えは記録の行き先を消すので使えない）。
+      本返し・ことば・復刊を願うは、どれも作品のページの id に付く。
+   ・届け先：ほかの版の出版社も to[] に入れる（04_tools/版を足す.mjs）。**分けて届ける**（決定 2-b）
+   ・年：**最初に出た年**。表紙：**いま買える版のもの**（決定 3-a）
+   ・状態：どれか1つの版が買えれば「流通」。品切れと出すのは、全部の版が品切れのときだけ
+   editions の1件は { isbn, label, title?, subtitle?, publisherText, year, pages,
+                       amazonLinks, cover, coverManual?, status, statusNote, statusCheckedAt, requestedBy? } */
+const 版の姿 = (v, 名) => ({
+  isbn: v.isbn, 名: 名 ?? v.label ?? "",
+  題: v.title || null, 副題: v.subtitle || null,
+  版元: v.publisherText || "", 年: v.year || null, 頁: v.pages || null,
+  書影: v.coverManual || Amazonの表紙((v.amazonLinks && v.amazonLinks[0]?.url) || v.amazonUrl) || v.cover || null,
+  控えの書影: v.cover || null,
+  Amazonら: (v.amazonLinks && v.amazonLinks.length ? v.amazonLinks
+             : v.amazonUrl ? [{ label:"", url:v.amazonUrl }] : []),
+  状態: v.status || "流通", 状態の根拠: v.statusNote || null, 状態の日: v.statusCheckedAt || null,
+  申請者: v.requestedBy || null
+});
+
+function 版をまとめる(b){
+  if(b.版ら.length < 2) return b;
+  const 年順 = [...b.版ら].sort((p, q)=>(p.年 || 9999) - (q.年 || 9999));
+  const 最初 = 年順[0];
+  const 買える = b.版ら.find(v=>v.状態 !== "絶版");
+  const 表紙の版 = (買える && 買える.書影) ? 買える : b.版ら[0];
+  return { ...b,
+    年: 最初.年 || b.年, 版元: 最初.版元 || b.版元,
+    書影: 表紙の版.書影 || b.書影, 控えの書影: 表紙の版.控えの書影 || b.控えの書影,
+    状態: 買える ? "流通" : "絶版",
+    状態の根拠: 買える ? null : b.状態の根拠, 状態の日: 買える ? null : b.状態の日,
+    /* リンクは版の名を添えて並べる（「Amazonで見る　文庫」） */
+    Amazonら: b.版ら.flatMap(v=>v.Amazonら.map(a=>({ ...a, label:[v.名, a.label].filter(Boolean).join(" ") })))
+  };
+}
+
+/* 作品のページの形。版が1つなら、前と同じ中身になる */
+function 本の姿(id, x){
+  const 本体 = 版の姿({ ...x, isbn: x.isbn || id }, x.editionLabel || "");
+  return {
+      版ら: [本体, ...(x.editions || []).map(v=>版の姿(v))],
+      id, isbn: x.isbn,
       題: x.title, 副題: x.subtitle || null,
       著: x.authorText || "", 版元: x.publisherText || "",
       年: x.year || null, 刊行日: x.pubDate || null,
@@ -346,9 +389,7 @@ export async function 蔵書をよみこむ(){
         return e ? { id, 種:種の名[e.型] || e.型, 名:e.名, 認証:e.認証 }
                  : { id, 種:"不明", 名:id, 認証:false };
       })
-    };
-  });
-  return 蔵書;
+  };
 }
 
 export function 入る(){
@@ -808,7 +849,11 @@ export async function 受取人の受取(受取id){
 /* ============================================================
    小道具
    ============================================================ */
-export const 本を引く = id => 蔵書.find(b=>b.id===id);
+/* ⚠️ 別の版の ISBN でも、作品のページが引ける（/b/<文庫の ISBN> や、申請の重なりの確かめ） */
+export const 本を引く = id => 蔵書.find(b=>b.id===id) || 蔵書.find(b=>b.版ら.some(v=>v.isbn===id));
+/* 検索にかける文字。ほかの版の題・出版社・ISBN でも当たるように */
+export const 探す文字 = b => [b.題, b.副題, b.著, ...b.版ら.flatMap(v=>[v.題, v.副題, v.版元, v.isbn])]
+  .filter(Boolean).join(" ");
 /* ⚠️ 前は「認証済の受取人だけ」を返していたが、トライアル中は
       まだ引き継がれていない主体にも本返しできるようにしたので、**全部返す。**
       claimed かどうかは r.認証 で画面に出すだけ。

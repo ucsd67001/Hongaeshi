@@ -36,39 +36,12 @@
    ============================================================ */
 
 import { readFileSync } from "node:fs";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { initializeApp, cert } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
-import { openBDで引く, 著者をばらす, 読める名に, 主体のid, 出版社キー, 著者キー, 無い主体を作る }
+import { openBDで引く, 著者をばらす, 読める名に, 主体のid, 出版社キー, 著者キー, 無い主体を作る, Amazonを読む }
   from "./書誌.mjs";
 import { 名前をととのえる } from "../public/名寄せ.js";
-const 実行 = promisify(execFile);
-
-export const アソシエイトタグ = "ucsd67001-22";
-
-const ISBN13にする = isbn10 => {
-  const d = String(isbn10 || "").replace(/[^0-9Xx]/g, "");
-  if(!/^[0-9]{9}[0-9Xx]$/.test(d)) return null;
-  const 体 = "978" + d.slice(0, 9);
-  let 和 = 0;
-  for(let i = 0; i < 12; i++) 和 += Number(体[i]) * (i % 2 ? 3 : 1);
-  return 体 + String((10 - (和 % 10)) % 10);
-};
-
-/* ⚠️ Windows の Git Bash では、curl の -o /dev/null が
-      「client returned ERROR on write」で終了コード23を返すことがある。
-      **そのときも url_effective は stdout に出ている**ので、拾って使う。 */
-async function 辿る(url){
-  const 引数 = ["-sS","-L","-m","40","-o","/dev/null","-w","%{url_effective}", url];
-  try{
-    const { stdout } = await 実行("curl", 引数, { encoding:"utf8", maxBuffer: 1e7 });
-    return stdout.trim();
-  }catch(e){
-    if(e.stdout && e.stdout.includes("amazon")) return e.stdout.trim();
-    throw e;
-  }
-}
+/* ⚠️ リンクを読む部分（辿る・ISBN13にする・タグ）は 書誌.mjs に移した（版を足す.mjs と共通にするため） */
 
 const 引数 = process.argv.slice(2);
 const 下見 = 引数.includes("--下見");
@@ -146,15 +119,13 @@ console.log(`棚には ${蔵書.size}冊。${リンクら.length}本のリンク
 const 直す = [];
 const 作る本 = [];          // --新規 のときに貯める
 const 束ねる = [];          // --本 のときに貯める
+const 版を直す = [];        // 別の版として足してある ISBN のリンク
 for(const 生 of リンクら){
   const [もと, ラベル] = 生.split("|");
-  const 先 = await 辿る(もと);
-  const m = 先.match(/\/(?:dp|gp\/product|ASIN)\/([0-9A-Za-z]{10})/);
-  const asin = m ? m[1] : null;
-  const isbn = asin ? ISBN13にする(asin) : null;
+  const 読 = await Amazonを読む(もと);
   console.log(`  ${もと}`);
-  if(!asin){ console.log(`      × 商品番号を読み取れませんでした\n`); continue; }
-  const 正 = `https://www.amazon.co.jp/dp/${asin}?tag=${アソシエイトタグ}`;
+  if(!読){ console.log(`      × 商品番号を読み取れませんでした\n`); continue; }
+  const { asin, isbn, 正 } = 読;
 
   /* ⚠️ --本 が指定されていれば、ISBNが合わなくてもその本に束ねる。
         版や巻が違っても「同じ作品」であることは、人にしか判断できない。 */
@@ -170,6 +141,17 @@ for(const 生 of リンクら){
 
   const 本 = isbn ? 蔵書.get(isbn) : null;
   if(!isbn){ console.log(`      × ASIN ${asin} は ISBN ではありません（Kindle版など）\n`); continue; }
+
+  /* ⚠️⚠️ **別の版として足してある ISBN なら、その版にリンクを付ける。**
+        ここを見ないと --新規 で同じ作品の2ページ目を作ってしまう（版を足す.mjs、2026-09-26） */
+  const 作品 = !本 && [...蔵書].find(([, b])=>(b.editions || []).some(v=>v.isbn === isbn));
+  if(作品){
+    const [作品id, 作品本] = 作品;
+    console.log(`      ◎ 『${作品本.title}』の版 ${isbn} にリンクを付けます`);
+    console.log(`        ${正}\n`);
+    版を直す.push({ 作品id, isbn, link: { label: ラベル || "", url: 正 } });
+    continue;
+  }
 
   /* ⚠️ --新規 なら、棚に無い本はその場で書誌を引いて登録する */
   if(!本 && 新規){
@@ -193,9 +175,9 @@ for(const 生 of リンクら){
 if(本指定 && 束ねる.length)
   直す.push({ id: 本指定, links: 束ねる, 題: 蔵書.get(本指定)?.title });
 
-console.log(`紐づける本：${直す.length}　新しく登録：${作る本.length} / ${リンクら.length}`);
+console.log(`紐づける本：${直す.length}　別の版：${版を直す.length}　新しく登録：${作る本.length} / ${リンクら.length}`);
 if(下見){ console.log("（下見なので、何も書いていません）"); process.exit(0); }
-if(!直す.length && !作る本.length) process.exit(0);
+if(!直す.length && !作る本.length && !版を直す.length) process.exit(0);
 
 /* ⚠️ 単数の amazonUrl は消して、配列の amazonLinks に一本化する。
       両方あると、どちらを見るかで食い違う。 */
@@ -205,6 +187,15 @@ await 無い主体を作る(db, 束, [...新しい主体.values()]);
 作る本.forEach(x=>束.set(db.collection("books").doc(x.id), x.中身, { merge:true }));
 直す.forEach(x=>束.update(db.collection("books").doc(x.id),
   { amazonLinks: x.links, amazonUrl: null }));
+/* 別の版のリンク。本のリンクと同じく、その版のリンクを今回渡した分で差し替える。
+   ⚠️ editions は配列なので、作品ごとに丸ごと書き直す */
+for(const 作品id of new Set(版を直す.map(x=>x.作品id))){
+  const editions = (蔵書.get(作品id).editions || []).map(v=>{
+    const 分 = 版を直す.filter(x=>x.作品id === 作品id && x.isbn === v.isbn).map(x=>x.link);
+    return 分.length ? { ...v, amazonLinks: 分 } : v;
+  });
+  束.update(db.collection("books").doc(作品id), { editions });
+}
 await 束.commit();
 console.log(`✓ 書きました。表紙も Amazon のものに変わります。`);
 process.exit(0);

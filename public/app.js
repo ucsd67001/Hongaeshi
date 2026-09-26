@@ -212,6 +212,16 @@ function 状態の添え(b){
   return `<span class="節の注" style="display:inline;margin:0 0 0 4px;align-self:center">（${逃(根拠)}${何日}）</span>`;
 }
 
+/* 版が2つ以上ある本の、本のページの素性。古い順に1行ずつ（「単行本　文藝春秋（1995）　ISBN …」）。
+   ⚠️ 版で題が違う（文庫で改題した）ときは、その題も添える。品切れの版には（品切れ）と添える。
+      openBD の題は副題までつながっていることがあるので、作品の題で始まっていれば同じ題とみなす */
+function 版の並び(b){
+  const 鍵 = t => String(t || "").normalize("NFKC").replace(/\s/g, "");
+  return [...b.版ら].sort((p, q)=>(p.年 || 9999) - (q.年 || 9999)).map(v=>
+    `<span class="版の行">${v.名 ? `<b>${逃(v.名)}</b>　` : ""}${v.題 && !鍵(v.題).startsWith(鍵(b.題)) ? `『${逃(v.題)}』　` : ""}${版元と年(v)}`
+    + `${v.頁 ? `　${v.頁}ページ` : ""}　ISBN ${逃(v.isbn)}${v.状態==="絶版" ? "（品切れ）" : ""}</span>`).join("<br>");
+}
+
 function 本の札(b, s){
   s = s || { 人数:0, 金額:0, 残数:0, 約額:0 };
   const 右 = b.状態==="絶版"
@@ -583,7 +593,7 @@ async function 頁_さがす(){
   ]);
   const 表 = 数.本;
   const 順 = 番付(数, 3);
-  const 一覧 = q ? 土台.蔵書.filter(b=>(b.題+b.著+b.版元).includes(q)) : 土台.蔵書;
+  const 一覧 = q ? 土台.蔵書.filter(b=>土台.探す文字(b).includes(q)) : 土台.蔵書;
 
   return `
   ${看板()}
@@ -654,7 +664,7 @@ async function 頁_一覧(){
   const 表 = (await まとめて数える()).本;
 
   let 本ら = [...土台.蔵書];
-  if(q) 本ら = 本ら.filter(b=>(b.題 + b.著 + b.版元 + (b.副題||"")).includes(q));
+  if(q) 本ら = 本ら.filter(b=>土台.探す文字(b).includes(q));
   const 並べ方 = {
     登録: (a,b)=>String(b.登録日||"").localeCompare(String(a.登録日||"")),
     年:   (a,b)=>(b.年||0) - (a.年||0),
@@ -765,7 +775,8 @@ async function 頁_本(){
       <h1 class="本の題">${逃(b.題)}</h1>
       ${b.副題 ? `<p class="本の副題">${逃(b.副題)}</p>` : ""}
       <p class="本の素性" style="font-size:12.5px;margin-top:12px">
-        ${逃(b.著)}<br>${版元と年(b)}${b.頁?`　${b.頁}ページ`:""}${b.isbn?`<br>ISBN ${b.isbn}`:""}</p>
+        ${逃(b.著)}<br>${b.版ら.length > 1 ? 版の並び(b)
+          : `${版元と年(b)}${b.頁?`　${b.頁}ページ`:""}${b.isbn?`<br>ISBN ${b.isbn}`:""}`}</p>
       ${/* 申請した人を讃える。⚠️ 名前を出すのは、読書家のページを公開している人だけ */
         b.申請者 && 土台.公開か(b.申請者) ? `<p class="申請の礼">
           ${読書家の名(b.申請者, 土台.名を引く(b.申請者))} さんの申請で、棚に並びました</p>` : ""}
@@ -1203,6 +1214,11 @@ window.申請を始める = ()=>{ S = { 題:"", 著:"", 版元:"", isbn:"", amaz
   申請描く(); };
 
 function 申請描く(欄を保つ){
+  /* ⚠️ 確かめた ISBN が棚にあれば（別の版も含む）、申請の前に知らせる。二重の申請を減らすため。
+        openBD に無かった（確認 false）ときも、打った ISBN で棚は見る */
+  const 打った = String(S.isbn || "").replace(/[^0-9Xx]/g, "");
+  const 棚の本 = S.確認 === null || S.確認 === "さがし中" ? null
+    : 本を引く(S.確認?.isbn || "") || 本を引く(打った) || 本を引く(土台.ISBN13にする(打った) || "");
   const 中 = S.済 ? `<div class="終い">
       <div class="印">📖</div>
       <h3 style="font-size:19px;margin:16px 0 10px;font-weight:600;letter-spacing:.09em">受け取りました</h3>
@@ -1231,6 +1247,11 @@ function 申請描く(欄を保つ){
       <button class="釦 枠だけ 小" style="white-space:nowrap" onclick="ISBNを確かめる()">確かめる</button>
     </div>
     ${S.確認 === "さがし中" ? `<p class="節の注">さがしています…</p>`
+      : 棚の本 ? `<div class="断り 藤" style="margin-top:12px">
+          <b>この本は、もう棚にあります。</b>${棚の本.版ら.length > 1 ? "（別の版として並んでいます）" : ""}<br>
+          『${逃(棚の本.題)}』 ${逃(棚の本.著)}
+          <br><button class="釦 枠だけ 小" style="margin-top:8px"
+            onclick="覆い閉じ();go('book',{id:${引数(棚の本.id)}})">この本のページへ</button></div>`
       : S.確認 ? `<div class="断り 藤" style="margin-top:12px">
           <b>${逃(S.確認.題)}</b><br>${逃(S.確認.著||"")}<br>${逃(S.確認.版元||"")}・${逃(S.確認.年||"")}
           <br><button class="釦 枠だけ 小" style="margin-top:8px"

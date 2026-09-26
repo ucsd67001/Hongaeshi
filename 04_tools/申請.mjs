@@ -2,7 +2,7 @@
    申請 ― 利用者からの「読んだ本を棚に加える」を、手元で処理する
 
      node 04_tools/申請.mjs                         ← 未処理の申請を並べる（棚との重複も見る）
-     node 04_tools/申請.mjs 並べた <申請id> <ISBN13>  ← 棚に並べたことを記録する
+     node 04_tools/申請.mjs 並べた <申請id> <ISBN13>  ← 棚に並べたことを記録する（別の版として足した ISBN でもよい）
      node 04_tools/申請.mjs 見送り <申請id>           ← 見送ったことを記録する
 
    ⚠️⚠️ **管理画面の「本にする」と同じ記録を残すこと。**手元の道具で本を登録しただけだと、
@@ -51,8 +51,11 @@ if(!何を){
     console.log(`  申請　：${x.name || ""} ${await 名を引く(x.from)}　${日本時間(x.at)}`);
     /* 重複の疑い：同じ ISBN／題の頭が同じ本 */
     if(x.isbn && 棚.has(x.isbn)) console.log(`  ⚠ 同じ ISBN の本がもう棚にあります：${棚.get(x.isbn).title}`);
+    const 版の作品 = x.isbn && [...棚].find(([, b])=>(b.editions || []).some(v=>v.isbn === x.isbn));
+    if(版の作品) console.log(`  ⚠ 同じ ISBN が、もう別の版として棚にあります：${版の作品[1].title}　${版の作品[0]}`);
     const 似た = [...棚].filter(([id, b])=>id !== x.isbn && 題の鍵(b.title) && 題の鍵(b.title) === 題の鍵(x.title));
-    似た.forEach(([id, b])=>console.log(`  ⚠ 題が似た本が棚にあります（別の版かも）：${b.title}　${id}`));
+    似た.forEach(([id, b])=>console.log(`  ⚠ 題が似た本が棚にあります（別の版かも）：${b.title}　${id}\n` +
+      `    別の版なら新しい本にせず、node 04_tools/版を足す.mjs --下見 ${id} <この版のISBN> --版 文庫`));
   }
   console.log(`\n未処理 ${s.size}件`);
   process.exit(0);
@@ -67,12 +70,24 @@ const x = 今.data();
 if(何を === "並べた"){
   if(!/^\d{13}$/.test(isbn || "")){ console.error("× ISBN13 を渡してください。"); process.exit(1); }
   const 本 = db.doc(`books/${isbn}`);
-  if(!(await 本.get()).exists){ console.error(`× ${isbn} はまだ棚にありません。先に本を登録してください。`); process.exit(1); }
   const 束 = db.batch();
-  束.update(申請, { done:true, status:"並んだ", book:isbn });
-  束.update(本, { requestedBy: x.from });
-  await 束.commit();
-  console.log(`✓ 『${x.title}』を「棚に並びました」にし、本に申請した人を記録しました。`);
+  if((await 本.get()).exists){
+    束.update(申請, { done:true, status:"並んだ", book:isbn });
+    束.update(本, { requestedBy: x.from });
+    await 束.commit();
+    console.log(`✓ 『${x.title}』を「棚に並びました」にし、本に申請した人を記録しました。`);
+  }else{
+    /* ⚠️ 別の版として足した ISBN なら、申請の行き先は**作品のページ**（版を足す.mjs）。
+          申請した人は**その版に**記録する。作品の requestedBy は、作品を棚に加えた人のまま触らない
+          （「棚に加えた本」の番付は作品を加えた人を数える） */
+    const 作品 = (await db.collection("books").get()).docs.find(d=>(d.data().editions || []).some(v=>v.isbn === isbn));
+    if(!作品){ console.error(`× ${isbn} はまだ棚にありません（別の版にもありません）。先に本か版を登録してください。`); process.exit(1); }
+    const editions = 作品.data().editions.map(v=>v.isbn === isbn ? { ...v, requestedBy: x.from } : v);
+    束.update(申請, { done:true, status:"並んだ", book:作品.id });
+    束.update(作品.ref, { editions });
+    await 束.commit();
+    console.log(`✓ 『${x.title}』を「棚に並びました」にしました。行き先は作品『${作品.data().title}』（${作品.id}）の版です。`);
+  }
 }else if(何を === "見送り"){
   await 申請.update({ done:true, status:"見送り" });
   console.log(`✓ 『${x.title}』を「見送り」にしました。`);

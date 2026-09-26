@@ -58,21 +58,31 @@ const 本ら = await db.collection("books").get();
 const 束 = db.batch();
 const 数 = { 流通:0, 品切れ:0, 出品なし:0, 要確認:0, 変わる:0, 手で決めた:0, 判定なし:0 };
 
-for(const d of 本ら.docs){
-  const x = d.data();
+/* 1つの版（作品の本体か editions の1件）を判定する。書き込む項目を返す。判定が無い・手で決めたなら null
+   ⚠️ 版（2026-09-26〜）も同じ決まりで見る。作品が「品切れ」と出るのは、全部の版が品切れのとき（共通.js） */
+function 見る(x, isbn, 名){
   const url = (x.amazonLinks && x.amazonLinks[0]?.url) || x.amazonUrl || "";
-  const asin = (url.match(/\/dp\/([0-9A-Z]{10})/) || [])[1] || ISBN10(d.id);
+  const asin = (url.match(/\/dp\/([0-9A-Z]{10})/) || [])[1] || ISBN10(isbn);
   const 結果 = 判定[asin]?.[0];
-  if(!結果){ 数.判定なし++; continue; }
-  if(x.statusNote === "管理者が設定"){ 数.手で決めた++; continue; }
+  if(!結果){ 数.判定なし++; return null; }
+  if(x.statusNote === "管理者が設定"){ 数.手で決めた++; return null; }
   数[結果]++;
-
   const 新しい = (結果 === "品切れ" || 結果 === "出品なし") ? "絶版" : 結果 === "流通" ? "流通" : (x.status || "流通");
   if(新しい !== (x.status || "流通")){
     数.変わる++;
-    console.log(`  ${x.status || "流通"} → ${新しい}   ${x.title}${x.subtitle ? " " + x.subtitle : ""}`);
+    console.log(`  ${x.status || "流通"} → ${新しい}   ${名}`);
   }
-  束.update(d.ref, { status: 新しい, statusNote: 根拠[結果], statusCheckedAt: 日 });
+  return { status: 新しい, statusNote: 根拠[結果], statusCheckedAt: 日 };
+}
+
+for(const d of 本ら.docs){
+  const x = d.data();
+  const 名 = `${x.title}${x.subtitle ? " " + x.subtitle : ""}`;
+  const 本体 = 見る(x, d.id, 名);
+  const 版ら = x.editions || [];
+  const 新しい版ら = 版ら.map(v=>{ const w = 見る(v, v.isbn, `${名}（${v.label}）`); return w ? { ...v, ...w } : v; });
+  const 版が変わる = 新しい版ら.some((v, i)=>v !== 版ら[i]);
+  if(本体 || 版が変わる) 束.update(d.ref, { ...(本体 || {}), ...(版が変わる ? { editions: 新しい版ら } : {}) });
 }
 
 console.log(`\n流通 ${数.流通} ／ 品切れ ${数.品切れ} ／ 出品なし ${数.出品なし} ／ 要確認 ${数.要確認}` +

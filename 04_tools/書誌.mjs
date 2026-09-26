@@ -42,6 +42,44 @@ const 共通 = s => (s || "").normalize("NFKC")
   .replace(/[\s　]+/g, "").replace(/[・･·]/g, "")
   .replace(/[‐‑‒–—―ー−]/g, "-").toLowerCase();
 
+/* ── Amazon のリンク ─────────────────────────
+   ⚠️ Amazonリンクを入れる.mjs と 版を足す.mjs が使う。ここ1か所に置く（2026-09-26 に移した）。
+   ⚠️ 保存するのは**正規形**（/dp/{ASIN}?tag=…）。SiteStripe のURLに付く crid などは永続リンクにならない。
+   ⚠️ 紙の本の ASIN は ISBN-10 と同じ。B0… で始まるもの（Kindle版など）は ISBN にならない。 */
+export const アソシエイトタグ = "ucsd67001-22";
+
+export const ISBN13にする = isbn10 => {
+  const d = String(isbn10 || "").replace(/[^0-9Xx]/g, "");
+  if(!/^[0-9]{9}[0-9Xx]$/.test(d)) return null;
+  const 体 = "978" + d.slice(0, 9);
+  let 和 = 0;
+  for(let i = 0; i < 12; i++) 和 += Number(体[i]) * (i % 2 ? 3 : 1);
+  return 体 + String((10 - (和 % 10)) % 10);
+};
+
+/* ⚠️ Windows の Git Bash では、curl の -o /dev/null が
+      「client returned ERROR on write」で終了コード23を返すことがある。
+      **そのときも url_effective は stdout に出ている**ので、拾って使う。 */
+export async function 辿る(url){
+  const 引数 = ["-sS","-L","-m","40","-o","/dev/null","-w","%{url_effective}", url];
+  try{
+    const { stdout } = await 実行("curl", 引数, { encoding:"utf8", maxBuffer: 1e7 });
+    return stdout.trim();
+  }catch(e){
+    if(e.stdout && e.stdout.includes("amazon")) return e.stdout.trim();
+    throw e;
+  }
+}
+
+/* リンク（短縮リンクも可）→ { asin, isbn, 正 }。読めなければ null */
+export async function Amazonを読む(もと){
+  const 先 = await 辿る(もと);
+  const m = 先.match(/\/(?:dp|gp\/product|ASIN)\/([0-9A-Za-z]{10})/);
+  if(!m) return null;
+  return { asin: m[1], isbn: ISBN13にする(m[1]),
+           正: `https://www.amazon.co.jp/dp/${m[1]}?tag=${アソシエイトタグ}` };
+}
+
 /* ── openBD（ISBN → 正の書誌。57ms・安定） ────── */
 export async function openBDで引く(isbn){
   let d = null;

@@ -137,6 +137,8 @@ h2.節見出し{font-size:18px;font-weight:600;letter-spacing:.09em;margin:0}
   display:flex;align-items:baseline;gap:4px;flex-wrap:wrap}
 .財布の行 b{font-family:var(--明朝);font-size:20px;font-weight:600;color:var(--字);
   font-variant-numeric:tabular-nums;margin-left:6px}
+/* 本のページの素性で、版を1行ずつ並べる（単行本と文庫など） */
+.版の行 b{font-weight:600;color:var(--字の薄い)}
 /* マイページの「いまの気分で選ぶ」。理由は読ませる字（明朝）で。
    ⚠️ 失敗の字に朱を使わない（朱はお金の色） */
 .薦めのひとこと{margin:26px 0 12px;font-size:15.5px;line-height:2;color:var(--字)}
