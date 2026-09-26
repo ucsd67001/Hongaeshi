@@ -156,6 +156,9 @@ export const 私の印 = () => 印を引く(私?.uid, 私の名());
 const 色の形 = /^#[0-9a-fA-F]{6}$/;
 const 色として = c => typeof c === "string" && 色の形.test(c) ? c : null;
 
+/* 名乗りを読めたか。⚠️ 読めなかったときに「まだ名前を決めていない」と取り違えて、
+   決めてある人に名前を決める窓を出さないため（app.js の 名前を決めてもらう） */
+export let 名乗りを読めた = false;
 export async function 名乗りらをよみこむ(){
   const s = await getDocs(collection(db, "users"));
   名乗り表 = new Map(s.docs.map(d=>{
@@ -163,6 +166,7 @@ export async function 名乗りらをよみこむ(){
     return [d.id, { 名:x.name, 印:x.mark || null, 色:色として(x.color), 顔:x.photo || null,
                     公開: x.profilePublic === true }];
   }));
+  名乗りを読めた = true;
   return 名乗り表;
 }
 
