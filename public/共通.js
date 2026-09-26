@@ -35,6 +35,8 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { getStorage, ref as 置き場, uploadBytes, getDownloadURL }
   from "https://www.gstatic.com/firebasejs/10.14.1/firebase-storage.js";
+import { getFunctions, httpsCallable }
+  from "https://www.gstatic.com/firebasejs/10.14.1/firebase-functions.js";
 
 /* ⚠️ 管理画面（管理.js）が Firestore を直に触るので、ここから渡す。
       SDK を二重に読み込むと別インスタンスになって認証が効かない。 */
@@ -541,6 +543,16 @@ export async function 私の申請(){
     return { id:d.id, 題:x.title || "", 著:x.author || "", 本:x.book || null, 時:x.at,
              状態: x.status || (x.done ? "処理済み" : "確認中") };
   }).sort((a,b)=>(b.時?.seconds||0) - (a.時?.seconds||0));
+}
+
+/* いまの気分から本を薦めてもらう（functions/index.js の recommendBooks）。
+   ⚠️ 気分と、自分の本返し・ことばの記録が OpenAI に送られる。答えは保存しない。
+   ⚠️ 受け渡しの名前は ASCII（mood / note / picks）。ここで画面の名前に直す */
+export const 気分の長さ = 200;
+export async function 本を選んでもらう(気分){
+  const 呼ぶ = httpsCallable(getFunctions(app, "asia-northeast1"), "recommendBooks", { timeout: 70000 });
+  const { data } = await 呼ぶ({ mood: 気分 });
+  return { ひとこと: data.note || "", 本ら: (data.picks || []).map(p=>({ 本: p.isbn, 理由: p.reason })) };
 }
 
 /* 棚の育ち具合。今月（UTC の月。財布の配布と同じ区切り）に入った冊数 */

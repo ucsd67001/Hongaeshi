@@ -1458,6 +1458,54 @@ window.名乗りを保存 = async ()=>{
 /* ============================================================
    頁：マイページ（/me。前の「わたしの本返し」）
    ============================================================ */
+
+/* いまの気分で選ぶ（functions/index.js の recommendBooks）。
+   ⚠️ 答えは保存しない。ただ、薦められた本を見てから戻ると消えていては困るので、
+      **ページを読み込み直すまでは、ここで覚えておく。** */
+const 薦め = { 気分:"", 待ち:false, 答え:null, 失敗:"" };
+window.気分を書く = v=>{ 薦め.気分 = v; };     // ⚠️ 描き直さない（打ちかけを消さない）
+
+function 薦めの中(){
+  const 札ら = (薦め.答え?.本ら || []).map(p=>{
+    const b = 本を引く(p.本); if(!b) return "";
+    return `<button class="本の札" onclick="go('book',{id:${引数(b.id)}})">
+      <div class="書影" style="background:linear-gradient(155deg,${b.色},${b.色}bb)">
+        ${表紙img(b)}
+        <span>${逃(b.題)}</span></div>
+      <div style="flex:1;min-width:0">
+        <div class="本の名">${逃(b.題)}${副(b)}${b.状態==="絶版"?' <span class="札 注">品切れ</span>':""}</div>
+        <div class="本の素性">${逃(b.著)}　—　${版元と年(b)}</div>
+        <p class="薦めの理由">${逃(p.理由)}</p>
+      </div>
+    </button>`;
+  }).join("");
+  return `
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:14px">
+      <button class="釦" onclick="本を選んでもらう()" ${薦め.待ち ? "disabled" : ""}>
+        ${薦め.待ち ? "選んでいます…" : 薦め.答え ? "もう一度選んでもらう" : "本を選んでもらう"}</button>
+    </div>
+    <p class="節の注" style="margin-top:10px">書いた気分とあなたの記録は、選ぶためだけに OpenAI へ送ります。答えは保存しません。</p>
+    ${薦め.失敗 ? `<p class="薦めの失敗">${逃(薦め.失敗)}</p>` : ""}
+    ${薦め.答え ? `
+      ${薦め.答え.ひとこと ? `<p class="薦めのひとこと">${逃(薦め.答え.ひとこと)}</p>` : ""}
+      <div class="本の列">${札ら}</div>` : ""}`;
+}
+const 薦めを描き直す = ()=>{ const el = document.getElementById("薦めの中"); if(el) el.innerHTML = 薦めの中(); };
+
+window.本を選んでもらう = async ()=>{
+  const 気分 = 薦め.気分.trim();
+  if(!気分){ 薦め.失敗 = "いまの気分を書いてください"; 薦めを描き直す(); return; }
+  Object.assign(薦め, { 待ち:true, 失敗:"" }); 薦めを描き直す();
+  try{
+    薦め.答え = await 土台.本を選んでもらう(気分);
+  }catch(e){
+    console.error(e);
+    /* ⚠️ 処理側で日本語の言い分を付けて返している。付いていない失敗（通信など）は決まり文句に */
+    薦め.失敗 = /[ぁ-んァ-ヶ一-龠]/.test(e?.message || "") ? e.message
+             : "いまは本を選べませんでした。少し待ってから試してください";
+  }
+  薦め.待ち = false; 薦めを描き直す();
+};
 async function 頁_私(){
   if(!土台.私) return 入るには();
   /* ⚠️ 申請が読めなくても（ルールを変えた直後など）、記録の画面は出す */
@@ -1498,6 +1546,16 @@ async function 頁_私(){
       ${数字("Voices", 書いた.toLocaleString(), "書いたことば")}
       ${数字("Revive", 願った本.toLocaleString(), "復刊を願った本")}
     </div>
+  </section>
+
+  ${/* ⚠️ マイページに置くのは、その人の本返し・ことばを手がかりにするから（2026-09-26 決定） */ ""}
+  <section class="節">
+    ${節の頭("いまの気分で選ぶ", "AI")}
+    <p class="導き">いまの気分を書くと、棚の本から3冊選びます。あなたの本返しとことばも手がかりにします。</p>
+    <textarea class="欄" id="気分の文" maxlength="${土台.気分の長さ}" style="margin-top:14px;max-width:40em"
+      placeholder="例）仕事で疲れていて、少し遠くへ行きたい気分"
+      oninput="気分を書く(this.value)">${逃(薦め.気分)}</textarea>
+    <div id="薦めの中">${薦めの中()}</div>
   </section>
 
   <section class="節">
@@ -1769,6 +1827,9 @@ async function 頁_しくみ(){
       <p style="margin:0 0 18px"><b>自分のページは、選んだ人にだけ作られます。</b>
         設定で公開を選ぶと、名前を出して届けた本返しとことばが一つのページに並び、
         番付や声の名前から飛べるようになります。匿名で届けた分は出ません。</p>
+      <p style="margin:0 0 18px"><b>「いまの気分で選ぶ」は、OpenAI の AI を使います。</b>
+        マイページで使ったときだけ、書いた気分と、あなたの本返し・ことば（匿名の分も）を
+        選ぶために OpenAI へ送ります。選んだ結果は、本返しには保存しません。</p>
       <p style="margin:0"><b>本返しの収入について。</b>
         運営の5%のほかに、本のページの「Amazonで見る」は広告リンクです。
         そこから本が買われると、本返しに紹介料が入ります。本の値段は変わりません。</p>

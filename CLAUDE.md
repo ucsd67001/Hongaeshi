@@ -38,6 +38,16 @@ firebase deploy --project hongaeshi --only hosting
 
 ルールを変えたときは `--only firestore:rules` / `--only storage` も。
 
+Functions を出すとき：
+
+```bash
+FUNCTIONS_DISCOVERY_TIMEOUT=60000 firebase deploy --project hongaeshi --only functions --non-interactive
+```
+
+⚠️ **待ち時間を延ばす。**既定の10秒だと `User code failed to load … Timeout after 10000` で落ちる（2026-09-26）。
+⚠️ **Functions と hosting を一緒に出さない。**Functions は出ても、最後に「cleanup policy」のエラーが出ると
+hosting が公開されないまま終わる（2026-09-26 に踏んだ）。hosting は別に出して、画面で確かめる。
+
 ## 本を増やすとき
 
 README の「本を増やす手順」の順に流す。**「著者を直す」を飛ばさない。**
