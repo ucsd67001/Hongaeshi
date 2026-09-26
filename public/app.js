@@ -1469,7 +1469,8 @@ async function 頁_私(){
   ]);
   const 返し = 行.filter(x=>x.種==="返し");
   const 合計 = 返し.reduce((s,x)=>s+x.額,0);
-  const 純 = 受取人へ(合計);
+  const 書いた = 行.filter(x=>x.種==="ことば").length;          // 自分の画面なので匿名の分も数える
+  const 願った本 = new Set(行.filter(x=>x.種==="残し").map(x=>x.本)).size;   // 同じ本は1冊
 
   /* ⚠️ 「自分のこと」はここに集める（2026-09-24）。前は 設定の窓・わたしの本返し・読書家のページ の
         3か所に分かれていた。右上の名前もここへ来る。設定は窓のまま（たまにしか変えないので）。
@@ -1490,12 +1491,14 @@ async function 頁_私(){
       <button class="釦 枠だけ 小" onclick="設定をひらく()">名前・しるし・公開を変える</button>
       ${公開 ? `<button class="釦 枠だけ 小" onclick="go('reader',{id:${引数(土台.私.uid)}})">他の人からの見え方を見る</button>` : ""}
     </div>
+    ${/* ⚠️ 残高は「返したもの」ではなく「手持ち」なので、数字の段から外して別に置く（2026-09-26） */ ""}
+    <p class="財布の行">いまの残高 <b>${(土台.財布?.残高??0).toLocaleString()}</b><span>pt</span>
+      <span class="節の注" style="display:inline;margin:0 0 0 10px">毎月 ${土台.毎月配布.toLocaleString()}pt が配られます</span></p>
     <p class="導き" style="margin-top:22px">あなたが本の世界へ返したもの。</p>
     <div class="数字たち">
-      ${数字("Count", 返し.length, "返した回数")}
-      ${数字("Paid", 合計.toLocaleString(), "使ったポイント", true)}
-      ${数字("Delivered", 純.toLocaleString(), "本の世界へ届いた分（pt）")}
-      ${数字("Wallet", (土台.財布?.残高??0).toLocaleString(), "残高（pt）")}
+      ${数字("Returned", 合計.toLocaleString(), "返したポイント", true)}
+      ${数字("Voices", 書いた.toLocaleString(), "書いたことば")}
+      ${数字("Revive", 願った本.toLocaleString(), "復刊を願った本")}
     </div>
   </section>
 
