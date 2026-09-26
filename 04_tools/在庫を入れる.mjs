@@ -14,6 +14,7 @@
         新品の購入欄があり、販売元が Amazon.co.jp  → 流通
         新品の購入欄が無く、中古だけ              → 品切れ（status:"絶版"）
         新品を売っているのが書店（古書店）だけ    → 要確認（流通のまま。人が決める）
+        新品も中古も出品が1つも無い              → 出品なし（status:"絶版"。2026-09-26 に足した）
    ⚠️ **「Amazon に新品が無い」は「絶版」ではなく「品切れ」。**一時的な在庫切れも拾うので、
       画面では「品切れ」と書き、判定の日と根拠を必ず添える（statusNote / statusCheckedAt）。
    ⚠️ **管理者が手で決めた本（statusNote が「管理者が設定」）は上書きしない。**
@@ -40,6 +41,7 @@ const db = getFirestore();
 
 const 判定 = JSON.parse(readFileSync(ファイル, "utf8"));
 const 根拠 = { 流通:"Amazon で新品あり", 品切れ:"Amazon で新品なし（中古のみ）",
+               出品なし:"Amazon で新品・中古とも出品なし",
                要確認:"Amazon では書店の新品のみ（要確認）" };
 
 /* ISBN-13 → ISBN-10（＝本の ASIN） */
@@ -54,7 +56,7 @@ function ISBN10(isbn13){
 
 const 本ら = await db.collection("books").get();
 const 束 = db.batch();
-const 数 = { 流通:0, 品切れ:0, 要確認:0, 変わる:0, 手で決めた:0, 判定なし:0 };
+const 数 = { 流通:0, 品切れ:0, 出品なし:0, 要確認:0, 変わる:0, 手で決めた:0, 判定なし:0 };
 
 for(const d of 本ら.docs){
   const x = d.data();
@@ -65,7 +67,7 @@ for(const d of 本ら.docs){
   if(x.statusNote === "管理者が設定"){ 数.手で決めた++; continue; }
   数[結果]++;
 
-  const 新しい = 結果 === "品切れ" ? "絶版" : 結果 === "流通" ? "流通" : (x.status || "流通");
+  const 新しい = (結果 === "品切れ" || 結果 === "出品なし") ? "絶版" : 結果 === "流通" ? "流通" : (x.status || "流通");
   if(新しい !== (x.status || "流通")){
     数.変わる++;
     console.log(`  ${x.status || "流通"} → ${新しい}   ${x.title}${x.subtitle ? " " + x.subtitle : ""}`);
@@ -73,7 +75,7 @@ for(const d of 本ら.docs){
   束.update(d.ref, { status: 新しい, statusNote: 根拠[結果], statusCheckedAt: 日 });
 }
 
-console.log(`\n流通 ${数.流通} ／ 品切れ ${数.品切れ} ／ 要確認 ${数.要確認}` +
+console.log(`\n流通 ${数.流通} ／ 品切れ ${数.品切れ} ／ 出品なし ${数.出品なし} ／ 要確認 ${数.要確認}` +
   `　（状態が変わる ${数.変わる}冊・手で決めた本は触らない ${数.手で決めた}冊・判定なし ${数.判定なし}冊）`);
 if(下見){ console.log("（下見なので、何も書いていません）"); process.exit(0); }
 await 束.commit();
