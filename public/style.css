@@ -128,6 +128,10 @@ h2.節見出し{font-size:18px;font-weight:600;letter-spacing:.09em;margin:0}
   display:flex;gap:12px;align-items:baseline;flex-wrap:wrap}
 .育つ棚の数 b{font-family:var(--明朝);font-size:17px;font-weight:600;letter-spacing:.06em}
 .育つ棚の数 span{color:var(--灯);font-size:12px;letter-spacing:.04em}
+/* 本のページの「この本について」。読ませる字（明朝）で、囲まずに置く */
+.この本について{padding-top:40px}
+.紹介の文{margin:16px 0 0;max-width:40em;font-size:15.5px;line-height:2.05;color:var(--字)}
+
 /* マイページの残高。数字の段とは分けて、名前の下に1行で出す */
 .財布の行{margin:18px 0 0;font-family:var(--ゴシック);font-size:12.5px;color:var(--字の薄い);
   display:flex;align-items:baseline;gap:4px;flex-wrap:wrap}

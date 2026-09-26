@@ -800,6 +800,12 @@ async function 頁_本(){
     </div>
   </div>
 
+  ${/* 「この本について」。出どころに基づく紹介（200字以内）。無い本は節ごと出さない（2026-09-26） */
+    b.紹介 ? `<section class="節 この本について">
+    ${節の頭("この本について")}
+    <p class="紹介の文">${逃(b.紹介)}</p>
+  </section>` : ""}
+
   <div class="数字たち" style="margin-top:44px">
     ${数字("Thanks", s.人数.toLocaleString(), "本返しした人")}
     ${数字("Returned", pt(s.金額).replace("pt",""), "この本から返った分（pt）", true)}

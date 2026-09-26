@@ -104,6 +104,12 @@ window.本を直す = id=>{
     <input class="欄" id="直す版元" value="${逃(b.版元)}">
     <label class="名札">刊行年</label>
     <input class="欄" id="直す年" inputmode="numeric" value="${b.年||""}">
+    <label class="名札">この本について（200字まで。空にすると出さない）</label>
+    <textarea class="欄" id="直す紹介" maxlength="200" style="min-height:120px">${逃(b.紹介||"")}</textarea>
+    <p class="節の注" style="margin-top:4px">
+      ${b.紹介 ? (b.紹介は確かめ済み ? "確かめ済み。" : "AI の下書き（まだ確かめていない）。")
+               + (b.紹介の出どころ ? `出どころ：${逃(b.紹介の出どころ)}` : "") : "まだ紹介がありません。"}
+      ここで保存すると「確かめ済み」になり、道具（04_tools/紹介を入れる.mjs）で上書きされなくなります。</p>
     <label class="名札">いまの状態</label>
     <select class="欄" id="直す状態">
       <option value="流通" ${b.状態!=="絶版"?"selected":""}>流通中（買える）</option>
@@ -157,7 +163,14 @@ window.本を直す確定 = async id=>{
       year: Number(取("直す年")) || null,
       status: 状態,
       coverManual: 取("直す書影") || null,
-      amazonLinks, amazonUrl: null
+      amazonLinks, amazonUrl: null,
+      /* 紹介：保存したら持ち主が確かめたものとして checkedAt を入れる（道具で上書きされないように）。
+         空なら紹介を消す */
+      intro: 取("直す紹介")
+        ? { text: 取("直す紹介").slice(0, 200), source: b?.紹介の出どころ || "持ち主が書いた",
+            madeBy: b?.紹介 && 取("直す紹介") === b.紹介 ? "AI" : "持ち主",
+            madeAt: new Date().toISOString(), checkedAt: new Date().toISOString() }
+        : null
     });
     閉じる(); 知らせる("直しました");
     await 土台.蔵書をよみこむ(); window.描き直す();

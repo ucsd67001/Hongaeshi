@@ -319,7 +319,11 @@ export async function 蔵書をよみこむ(){
             || Amazonの表紙((x.amazonLinks && x.amazonLinks[0]?.url) || x.amazonUrl)
             || x.cover || null,
       控えの書影: x.cover || null,
-      手の書影: x.coverManual || null,     // 管理画面の「直す」に出すのはこれ（書影は自動の分も混ざる）
+      手の書影: x.coverManual || null,
+      /* 本のページの「この本について」。出どころに基づいて Claude Code が書き、持ち主が確かめて直す */
+      紹介: x.intro?.text || null,
+      紹介の出どころ: x.intro?.source || null,
+      紹介は確かめ済み: !!x.intro?.checkedAt,     // 管理画面の「直す」に出すのはこれ（書影は自動の分も混ざる）
       /* ⚠️ **1冊に複数のリンクを持てる。**作品は1つでも、Amazonでは
             版や巻で分かれていることがある（『二十歳のころ』は文庫で上下2巻）。
             単数の amazonUrl は古い形。読むときだけ面倒を見る。 */
