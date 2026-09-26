@@ -47,6 +47,7 @@ FUNCTIONS_DISCOVERY_TIMEOUT=60000 firebase deploy --project hongaeshi --only fun
 ⚠️ **待ち時間を延ばす。**既定の10秒だと `User code failed to load … Timeout after 10000` で落ちる（2026-09-26）。
 ⚠️ **Functions と hosting を一緒に出さない。**Functions は出ても、最後に「cleanup policy」のエラーが出ると
 hosting が公開されないまま終わる（2026-09-26 に踏んだ）。hosting は別に出して、画面で確かめる。
+（そのエラーの元の「古い処理の中身を消す設定」は、2026-09-26 に入れた。1日より古いものを自動で消す）
 
 ## 本を増やすとき
 
