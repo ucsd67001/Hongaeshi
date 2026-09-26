@@ -37,6 +37,7 @@ import { getStorage, ref as 置き場, uploadBytes, getDownloadURL }
   from "https://www.gstatic.com/firebasejs/10.14.1/firebase-storage.js";
 import { getFunctions, httpsCallable }
   from "https://www.gstatic.com/firebasejs/10.14.1/firebase-functions.js";
+import { 著者をばらす, 読める名に } from "./名寄せ.js";
 
 /* ⚠️ 管理画面（管理.js）が Firestore を直に触るので、ここから渡す。
       SDK を二重に読み込むと別インスタンスになって認証が効かない。 */
@@ -610,6 +611,15 @@ export async function 本を選んでもらう(気分){
 export const 今月増えた = () => 蔵書.filter(b=>String(b.登録日 || "").startsWith(今月())).length;
 
 /* ISBN から書誌を引く。見つからなければ null（入力の補助なので、失敗しても止めない） */
+/* openBD の著者欄は「山形,浩生,1964-」（姓,名,生年）や「…／著 …／訳」の形で来る。
+   ⚠️ そのまま申請の窓に入れていた（2026-09-26 に持ち主が気づいた）。手元の道具と同じ 名寄せ.js の規則で
+      「山形浩生」の形にする。著でない人は「（訳）」のように役を添える */
+function 著者を読めるように(文字列){
+  const 人ら = 著者をばらす(文字列 || "");
+  if(!人ら.length) return 文字列 || "";
+  return 人ら.map(a=>読める名に(a.名) + (a.役 && a.役 !== "著" ? `（${a.役}）` : "")).join("、");
+}
+
 export async function ISBNで確かめる(isbn){
   const d = String(isbn || "").replace(/[^0-9Xx]/g, "");
   if(d.length < 10) return null;
@@ -617,7 +627,7 @@ export async function ISBNで確かめる(isbn){
     const [x] = await fetch(`https://api.openbd.jp/v1/get?isbn=${d}`).then(r=>r.json());
     if(!x?.summary?.title) return null;
     const v = x.summary;
-    return { 題:v.title, 著:v.author, 版元:v.publisher, 年:(v.pubdate||"").slice(0,4), isbn:v.isbn||d };
+    return { 題:v.title, 著:著者を読めるように(v.author), 版元:v.publisher, 年:(v.pubdate||"").slice(0,4), isbn:v.isbn||d };
   }catch(e){ return null; }
 }
 
