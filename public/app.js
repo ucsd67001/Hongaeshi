@@ -32,8 +32,14 @@ let 現在 = { 頁:"home" };
 const 並びの札 = [["登録","登録の新しい順"],["年","刊行の新しい順"],["額","返されたポイント"],["頁","ページ数"],["題","書名"]];
 const 並びの名 = new Set(並びの札.map(([k])=>k));
 
+/* 道の頭。本体は ""。デモ（demo.html）は "/demo" を入れてから読み込む。
+   ⚠️ デモは本体の画面をそのまま動かすので（public/デモ/ の注）、行き先に頭を付けて /demo の下に留める。
+      付けないと、デモで本を開いて読み込み直したとき、本物の棚に出てしまう */
+const 頭 = window.本返しの頭 || "";
+
 function 道を読む(){
-  const p = location.pathname.replace(/\/+$/,"") || "/";
+  const 道 = 頭 && location.pathname.startsWith(頭) ? location.pathname.slice(頭.length) : location.pathname;
+  const p = 道.replace(/\/+$/,"") || "/";
   if(p.startsWith("/b/")) return { 頁:"book", id:decodeURIComponent(p.slice(3)) };
   if(p.startsWith("/e/")) return { 頁:"entity", id:decodeURIComponent(p.slice(3)) };
   if(p.startsWith("/u/")) return { 頁:"reader", id:decodeURIComponent(p.slice(3)) };
@@ -64,7 +70,7 @@ function go(頁, 他={}, 履歴に積む=true){
            : (他.q ? "/?q="+encodeURIComponent(他.q) : "/");
   if(履歴に積む){
     位置を覚える();                         // ⚠️ 積む**前に**、いまのページの履歴へ書く
-    history.pushState({ y:0 }, "", 道);
+    history.pushState({ y:0 }, "", 頭 + 道);
   }
   window.scrollTo({ top:0, behavior:"instant" });
   描く();

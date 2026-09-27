@@ -49,6 +49,12 @@ FUNCTIONS_DISCOVERY_TIMEOUT=60000 firebase deploy --project hongaeshi --only fun
 hosting が公開されないまま終わる（2026-09-26 に踏んだ）。hosting は別に出して、画面で確かめる。
 （そのエラーの元の「古い処理の中身を消す設定」は、2026-09-26 に入れた。1日より古いものを自動で消す）
 
+## デモ（/demo）
+
+本体の画面を、Firebase だけ偽物に付け替えて動かしている（README「デモは、本体の画面をそのまま動かす」）。
+⚠️ **`共通.js` で新しい Firebase の関数を使ったら、`public/デモ/Firebaseの代わり.js` にも足す。**
+足さないとデモだけが読み込みで止まる。直したら `/demo` も開いて確かめる。
+
 ## 本を増やすとき
 
 README の「本を増やす手順」の順に流す。**「著者を直す」を飛ばさない。**
