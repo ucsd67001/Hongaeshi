@@ -190,7 +190,7 @@ export function httpsCallable(fns, 名){
     return { data: {
       note: "デモなので AI は使わず、棚から見本を選んでいます。",
       picks: 選ぶ.map(([id, b])=>({ isbn: id,
-        reason: `（デモの理由）${String(b.intro?.text || "").slice(0, 70)}…　本番では、書いた気分とあなたの本返し・ことばから、AI が理由を書きます。` }))
+        reason: `（デモの理由）${String(b.intro?.text || "").slice(0, 70)}…　本番では、書いた気分とあなたの本返し、本の紹介、ほかの読者の感想から、AI が理由を書きます。` }))
     } };
   };
 }

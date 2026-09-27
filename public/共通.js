@@ -533,7 +533,7 @@ export async function 私のことば(本id){
 export async function ことばを書く({ 本id, 文, 匿 }){
   if(!私) throw new Error("ログインしていません");
   const t = (文 || "").trim().slice(0, ことばの長さ);
-  if(!t) throw new Error("ことばを入れてください");
+  if(!t) throw new Error("感想を入れてください");
   const 道 = doc(db, "voices", ことばの番号(本id, 私.uid));
   const 今 = await getDoc(道);
   if(今.exists()) await updateDoc(道, { text:t, anon:!!匿, editedAt:serverTimestamp() });
@@ -673,6 +673,19 @@ async function 本らのことば(本idら){
   return 結果.flatMap(s=>s.docs.map(d=>ことばを直す(d.data()))).sort(新しい順);
 }
 
+/* 著者・出版社への「復刊を願う」（その相手が届け先に入っている本への分）。
+   ⚠️ 人数は別々の人の数（同じ人が2冊に願っても1人）。額は意思の合計（2026-09-27、コンセプトで「復刊願いで本返し」を相手に見せるため）
+   ⚠️ in は30件ずつ（本らのことば と同じ） */
+export async function 主体への願い(主体id){
+  const ids = 蔵書.filter(b=>b.受取.some(r=>r.id === 主体id)).map(b=>b.id);
+  const 人ら = new Set(); let 約額 = 0;
+  for(let i = 0; i < ids.length; i += 30){
+    const s = await getDocs(query(collection(db,"keeps"), where("book","in",ids.slice(i, i + 30))));
+    s.docs.forEach(d=>{ const x = d.data(); if(x.from) 人ら.add(x.from); 約額 += x.pledge || 0; });
+  }
+  return { 人数: 人ら.size, 約額 };
+}
+
 /* 著者・出版社に届いたことば（その相手が届け先に入っている本へのことば） */
 export async function 主体へのことば(主体id){
   const ids = 蔵書.filter(b=>b.受取.some(r=>r.id === 主体id)).map(b=>b.id);
@@ -732,19 +745,20 @@ export async function まとめて数える(){
   /* ⚠️ 人数は**別々の人の数**（同じ人が2回返しても1人）。
         前の 本.人数 は返しの件数だったので、ここで「人」に直した。件数は 件数 に残す */
   const 本 = {}, 主体 = {}, 人 = {};
-  const 本欄   = id => (本[id]   ||= { 件数:0, 人ら:new Set(), 金額:0, ことば:0, 願う人ら:new Set(), 約額:0 });
-  const 主体欄 = id => (主体[id] ||= { id, 件数:0, 人ら:new Set(), 金額:0, ことば:0 });
+  /* 推す人ら：ポイントか感想で推した、別々の人（2026-09-27 決定 3-b。番付の上の段の物差し） */
+  const 本欄   = id => (本[id]   ||= { 件数:0, 人ら:new Set(), 推す人ら:new Set(), 金額:0, ことば:0, 願う人ら:new Set(), 約額:0 });
+  const 主体欄 = id => (主体[id] ||= { id, 件数:0, 人ら:new Set(), 推す人ら:new Set(), 金額:0, ことば:0 });
   const 人欄   = id => (人[id]   ||= { id, 名:null, 件数:0, 金額:0, ことば:0, 登録:0 });
 
   返.docs.forEach(d=>{
     const x = d.data();
     const b = 本欄(x.book); b.件数++; b.金額 += x.amount || 0;
-    if(x.from) b.人ら.add(x.from);
+    if(x.from){ b.人ら.add(x.from); b.推す人ら.add(x.from); }
 
     /* 受取人に渡るのは9割。受取人の控えと同じ 受取人へ() で数える */
     (x.parts || []).forEach(p=>{
       const e = 主体欄(p.to); e.件数++; e.金額 += 受取人へ(p.amount);
-      if(x.from) e.人ら.add(x.from);
+      if(x.from){ e.人ら.add(x.from); e.推す人ら.add(x.from); }
     });
 
     if(x.from){
@@ -761,10 +775,11 @@ export async function まとめて数える(){
   /* ことばは voices から数える（1冊に1人1つなので、数＝書いた人の数）。
      本の届け先ぜんぶに1件ずつ数える（その本へのことばは、著者にも出版社にも届く）。
      ⚠️ 人ごとは**匿名のことばを数えない。**番付に名前が出るので、匿名の分から人が割れないように */
+  /* ⚠️ 推した人数には、匿名の感想を書いた人も数える（人数だけで、名前は出ないので） */
   声.docs.forEach(d=>{
     const x = d.data();
-    本欄(x.book).ことば++;
-    (本を引く(x.book)?.受取 || []).forEach(r=>主体欄(r.id).ことば++);
+    const b = 本欄(x.book); b.ことば++; if(x.from) b.推す人ら.add(x.from);
+    (本を引く(x.book)?.受取 || []).forEach(r=>{ const e = 主体欄(r.id); e.ことば++; if(x.from) e.推す人ら.add(x.from); });
     if(x.from && !x.anon){ const u = 人欄(x.from); u.ことば++; u.名 = 名を引く(x.from); }
   });
 
@@ -775,8 +790,9 @@ export async function まとめて数える(){
   });
 
   /* Set は画面へ渡さない。数にしてから返す */
-  const 数に = o => { const { 人ら, 願う人ら, ...残り } = o;
-    return { ...残り, ...(人ら ? { 人数:人ら.size } : {}), ...(願う人ら ? { 残数:願う人ら.size } : {}) }; };
+  const 数に = o => { const { 人ら, 推す人ら, 願う人ら, ...残り } = o;
+    return { ...残り, ...(人ら ? { 人数:人ら.size } : {}), ...(推す人ら ? { 推した人数:推す人ら.size } : {}),
+             ...(願う人ら ? { 残数:願う人ら.size } : {}) }; };
   return {
     本:   Object.fromEntries(Object.entries(本).map(([k,v])=>[k, 数に(v)])),
     主体: Object.fromEntries(Object.entries(主体).map(([k,v])=>[k, 数に(v)])),
@@ -784,14 +800,15 @@ export async function まとめて数える(){
   };
 }
 
-/* 番付の上の段（本・著者・出版社）は、**返されたポイントの多い順だけ**。
-   ⚠️ 2026-09-24 に 人数／ことば の切り替えを付けたが、持ち主の判断で外した。
-      人数・ことばの数は まとめて数える() が今も数えているので、戻すなら 番付() に物差しを足すだけ */
-export const 本の物差し = { 項:"金額", 単位:"pt" };
-/* 下の段：熱心な読書家。切り替えずに3つ並べる（ポイント・ことば・棚づくり、それぞれの1位を見せる） */
+/* 番付の上の段（本・著者・出版社）は、**ポイントか感想で推した人の多い順**（2026-09-27 決定 3-b）。
+   同じ人数なら、返されたポイントの多い順。
+   ⚠️ 前（2026-09-24〜）は「返されたポイントの多い順だけ」だった。コンセプトで感想も本返しの1つ
+      （他の読者へのおすすめにもなる）としたので、感想だけで推した人も数える */
+export const 本の物差し = { 項:"推した人数", 単位:"人" };
+/* 下の段：熱心な読書家。切り替えずに3つ並べる（ポイント・感想・棚づくり、それぞれの1位を見せる） */
 export const 読書家の物差しら = [
   { 名:"返したポイント", 項:"金額",   単位:"pt" },
-  { 名:"書いたことば",   項:"ことば", 単位:"件" },
+  { 名:"書いた感想",     項:"ことば", 単位:"件" },
   { 名:"棚に加えた本",   項:"登録",   単位:"冊" }
 ];
 
